@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>시스템파트 업무사이트</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="./css/app.css" />
+</head>
+<body>
+  <div id="app">
+    <div v-if="needLogin" class="login-page">
+      <div class="login-card">
+        <div class="mark">SP</div>
+        <h1>시스템파트 진행업무</h1>
+        <p>아이디를 입력하세요.</p>
+        <label class="field">
+          <span>아이디</span>
+          <input v-model.trim="loginForm.id" autocomplete="username" @keyup.enter="login" />
+        </label>
+        <p v-if="loginError" class="login-error">{{ loginError }}</p>
+        <button class="btn btn-primary" :disabled="loginBusy" @click="login">
+          {{ loginBusy ? '확인 중...' : '접속' }}
+        </button>
+        <p class="hint">
+          Firestore <code>user</code> 문서의 <code>id</code> 필드와 같으면 접속됩니다.
+          안 되면 Console → Firestore → 규칙에서 읽기를 허용하세요.
+        </p>
+      </div>
+    </div>
+    <template v-else>
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">SP</div>
+        <div>
+          <h1>시스템파트 진행업무</h1>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span v-if="currentUser" class="who">{{ currentUser.name }}</span>
+        <button v-if="currentUser" class="btn" @click="logout">로그아웃</button>
+        <button class="btn" @click="view = 'settings'">설정</button>
+        <button class="btn" @click="exportExcel" :disabled="view !== 'active'">엑셀 다운로드</button>
+        <button class="btn btn-primary" @click="openCreate">작업 등록</button>
+      </div>
+    </header>
+
+    <div v-if="status.message" class="banner" :class="'banner-' + status.type">
+      {{ status.message }}
+    </div>
+
+    <section class="panel" v-if="view !== 'settings'">
+      <nav class="tabs">
+        <button class="tab" :class="{ active: view === 'active' || view === 'done' }" @click="view = 'active'">작업</button>
+        <button class="tab" :class="{ active: view === 'calendar' }" @click="view = 'calendar'">캘린더</button>
+      </nav>
+
+      <nav class="tabs subtabs" v-if="view !== 'calendar'">
+        <button class="tab" :class="{ active: view === 'active' }" @click="view = 'active'">
+          진행 중 <span class="count">{{ activeCount }}</span>
+        </button>
+        <button class="tab" :class="{ active: view === 'done' }" @click="view = 'done'">
+          완료 작업 <span class="count">{{ doneCount }}</span>
+        </button>
+      </nav>
+
+      <div class="toolbar">
+        <div class="filters">
+          <button class="chip" :class="{ active: partFilter === '전체' }" @click="partFilter = '전체'">전체</button>
+          <button
+            v-for="part in parts"
+            :key="part"
+            class="chip"
+            :class="{ active: partFilter === part }"
+            @click="partFilter = part"
+          >{{ part }}</button>
+        </div>
+        <div class="search" v-if="view !== 'calendar'">
+          <input v-model.trim="keyword" type="search" placeholder="작업명, 세부내용, 요청자 검색" />
+        </div>
+        <div class="month-nav" v-else>
+          <button class="btn" @click="shiftMonth(-1)">이전</button>
+          <strong>{{ calendarLabel }}</strong>
+          <button class="btn" @click="shiftMonth(1)">다음</button>
+        </div>
+      </div>
+
+      <div v-if="loading" class="empty">불러오는 중...</div>
+
+      <template v-else-if="view === 'calendar'">
+        <div v-if="!calendarRows.length" class="empty">이달에 표시할 작업이 없습니다.</div>
+        <div v-else class="gantt">
+          <div class="gantt-head">
+            <div class="gantt-name">작업명</div>
+            <div class="gantt-days" :style="calendarGridStyle">
+              <span
+                v-for="day in calendarDays"
+                :key="day.n"
+                class="gantt-day"
+                :class="{ today: day.today, weekend: day.weekend }"
+              >{{ day.n }}</span>
+            </div>
+          </div>
+          <div
+            v-for="row in calendarRows"
+            :key="row.id"
+            class="gantt-row"
+            @click="openEdit(row.task)"
+          >
+            <div class="gantt-name" :class="{ done: row.done }">{{ row.title }}</div>
+            <div class="gantt-track" :style="calendarGridStyle">
+              <span
+                v-for="day in calendarDays"
+                :key="'line-' + day.n"
+                class="gantt-grid"
+                :class="{ today: day.today, weekend: day.weekend }"
+              ></span>
+              <span
+                class="gantt-range"
+                :class="{ 'cap-left': row.continuesLeft, 'cap-right': row.continuesRight }"
+                :style="{ left: row.left, width: row.width, background: row.color }"
+              ></span>
+              <span
+                v-if="row.hasFill"
+                class="gantt-bar"
+                :class="{ done: row.done }"
+                :style="{ left: row.fillLeft, width: row.fillWidth }"
+                :title="row.title + ' (' + row.task.progress + '%)'"
+              ></span>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div v-else-if="!visibleTasks.length" class="empty">표시할 작업이 없습니다.</div>
+      <div v-else class="table-wrap">
+        <table class="work">
+          <thead>
+            <tr>
+              <th>순번</th>
+              <th>지시일</th>
+              <th>요청자</th>
+              <th>파트</th>
+              <th>작업명</th>
+              <th>예정일</th>
+              <th>진행률</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="task in visibleTasks" :key="task.id" :style="rowStyle(task)">
+              <td class="seq">{{ task.seq }}</td>
+              <td>{{ task.instructedAt || '-' }}</td>
+              <td>{{ task.requester || '-' }}</td>
+              <td>
+                <div class="parts">
+                  <span
+                    v-for="part in task.parts"
+                    :key="part"
+                    class="tag"
+                    :style="{ background: partColor(part) }"
+                  >{{ part }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="title-cell">
+                  <span v-if="task.important" class="important-badge">중요</span>
+                  {{ task.title }}
+                </div>
+                <div
+                  v-if="task.detail"
+                  class="detail-preview"
+                  :class="{ open: expandedId === task.id }"
+                  @click="expandedId = expandedId === task.id ? null : task.id"
+                >{{ task.detail }}</div>
+                <ul v-if="task.subtasks && task.subtasks.length" class="subtask-list">
+                  <li
+                    v-for="item in task.subtasks"
+                    :key="item.id"
+                    :class="{ done: item.status === '완료' }"
+                  >
+                    <span class="sub-status">{{ item.status }}</span>
+                    {{ item.text }}
+                  </li>
+                </ul>
+                <div v-if="subtaskSummary(task)" class="sub-summary">{{ subtaskSummary(task) }}</div>
+              </td>
+              <td>{{ task.dueDate || '-' }}</td>
+              <td>
+                <div class="progress">
+                  <div class="bar" :class="{ done: task.progress >= 100 }">
+                    <span :style="{ width: Math.max(0, Math.min(100, task.progress)) + '%' }"></span>
+                  </div>
+                  <strong>{{ task.progress }}%</strong>
+                </div>
+              </td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn" @click="openEdit(task)">수정</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel setup" v-else>
+      <div class="tabs">
+        <button class="tab" @click="view = 'active'">← 작업으로</button>
+        <span class="tab active">설정</span>
+      </div>
+
+      <h3>작업 파트</h3>
+      <ul class="part-editor">
+        <li v-for="part in parts" :key="part">
+          <span class="tag" :style="{ background: partColor(part) }">{{ part }}</span>
+          <button class="btn btn-danger" @click="removePart(part)">삭제</button>
+        </li>
+      </ul>
+      <div class="part-add">
+        <input v-model.trim="newPartName" placeholder="새 파트 이름" @keyup.enter="addPart" />
+        <button class="btn btn-teal" @click="addPart">파트 추가</button>
+      </div>
+
+      <h3>데이터</h3>
+      <p class="hint">저장 방식은 <code>.env</code>의 <code>STORAGE_MODE</code>로 정합니다. <code>local</code> 또는 <code>firebase</code>. 현재: <strong>{{ storageLabel }}</strong></p>
+      <p class="hint">엑셀에서 CSV로 저장한 파일을 올리면 작업 목록에 등록됩니다. 컬럼은 순번, 작업지시일, 요청자, 완료예정일, 진행률, 파트(O), 작업명, 세부내용 형식입니다. 같은 작업명은 등록되지 않습니다.</p>
+      <div class="top-actions" style="margin-top:12px">
+        <label class="btn btn-teal file-btn">
+          CSV 가져오기
+          <input type="file" accept=".csv,text/csv" @change="importCsvFile" />
+        </label>
+        <button class="btn" @click="importSeed">기본 엑셀 원본 가져오기</button>
+      </div>
+    </section>
+
+    <div class="overlay" v-if="form.open" @click.self="closeForm">
+      <div class="modal">
+        <header>
+          <h2>{{ form.id ? '작업 수정' : '작업 등록' }}</h2>
+          <button class="btn btn-ghost" @click="closeForm">닫기</button>
+        </header>
+        <div class="body">
+          <div class="grid">
+            <label class="field">
+              <span>작업지시일</span>
+              <input v-model.trim="form.instructedAt" placeholder="예: 2026-08 또는 2026-08-18, 연중" />
+            </label>
+            <label class="field combo">
+              <span>요청자</span>
+              <input
+                v-model="form.requester"
+                autocomplete="off"
+                placeholder="기존 요청자가 자동완성됩니다"
+                @focus="requesterOpen = true; requesterIndex = 0"
+                @input="requesterOpen = true; requesterIndex = 0"
+                @keydown="onRequesterKey"
+                @blur="requesterOpen = false"
+              />
+              <ul class="suggest" v-if="requesterOpen && filteredRequesters.length">
+                <li
+                  v-for="(name, idx) in filteredRequesters"
+                  :key="name"
+                  :class="{ active: idx === requesterIndex }"
+                  @mousedown.prevent="pickRequester(name)"
+                >{{ name }}</li>
+              </ul>
+            </label>
+            <label class="field">
+              <span>완료예정일</span>
+              <input v-model="form.dueDate" type="date" />
+            </label>
+            <label class="field">
+              <span>진행률 (0~100%)</span>
+              <div class="slider-row">
+                <input v-model.number="form.progress" type="range" min="0" max="100" />
+                <input v-model.number="form.progress" type="number" min="0" max="100" />
+              </div>
+            </label>
+            <div class="field">
+              <span>작업 색상</span>
+              <div class="color-row">
+                <button
+                  type="button"
+                  class="swatch none"
+                  :class="{ selected: !form.color }"
+                  @click="form.color = ''"
+                >없음</button>
+                <button
+                  v-for="color in TASK_COLOR_PRESETS"
+                  :key="color"
+                  type="button"
+                  class="swatch"
+                  :class="{ selected: form.color === color }"
+                  :style="{ background: color }"
+                  @click="form.color = color"
+                ></button>
+                <input :value="form.color || '#1f4e79'" type="color" @input="form.color = $event.target.value" />
+              </div>
+            </div>
+            <label class="field important-field">
+              <span>중요 여부</span>
+              <label class="check-inline">
+                <input type="checkbox" v-model="form.important" />
+                중요 작업으로 표시
+              </label>
+            </label>
+            <div class="field full">
+              <span>작업 파트</span>
+              <div class="checkboxes">
+                <label v-for="part in parts" :key="part">
+                  <input type="checkbox" :value="part" v-model="form.parts" />
+                  {{ part }}
+                </label>
+              </div>
+            </div>
+            <label class="field full">
+              <span>작업명</span>
+              <input v-model.trim="form.title" />
+            </label>
+            <div class="field full">
+              <span>세부작업</span>
+              <div class="subtask-editor">
+                <div class="subtask-row" v-for="(item, idx) in form.subtasks" :key="item.id">
+                  <input v-model.trim="item.text" placeholder="세부작업 내용" />
+                  <div class="seg">
+                    <button type="button" :class="{ on: item.status === '진행' }" @click="item.status = '진행'">진행</button>
+                    <button type="button" :class="{ on: item.status === '완료' }" @click="item.status = '완료'">완료</button>
+                  </div>
+                  <button type="button" class="btn btn-ghost" @click="removeSubtask(idx)">삭제</button>
+                </div>
+                <button type="button" class="btn" @click="addSubtask">세부작업 추가</button>
+              </div>
+            </div>
+            <label class="field full">
+              <span>세부내용</span>
+              <textarea v-model="form.detail" placeholder="줄바꿈으로 날짜별 메모를 남길 수 있습니다."></textarea>
+            </label>
+          </div>
+        </div>
+        <footer>
+          <button class="btn btn-danger" v-if="form.id" @click="removeTask">삭제</button>
+          <span v-else></span>
+          <div class="top-actions">
+            <button class="btn" @click="closeForm">취소</button>
+            <button class="btn btn-primary" @click="saveTask">저장</button>
+          </div>
+        </footer>
+      </div>
+    </div>
+    </template>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="./js/env.js"></script>
+  <script src="./js/firebase.js"></script>
+  <script src="./js/seed-data.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

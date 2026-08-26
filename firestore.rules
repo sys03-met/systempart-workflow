@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 주의:
+    // 프론트 .env / env.js 에 넣은 "비밀키"를 rules에서 검증하는 방식은 안전하지 않습니다.
+    // 정적 페이지(GitHub Pages)에서는 그 값이 브라우저에 그대로 노출되고,
+    // Firestore rules는 클라이언트 요청의 커스텀 비밀키를 안전하게 받을 수 없습니다.
+    //
+    // 진짜로 막을 때는 Firebase Authentication(+ App Check)을 쓰세요.
+
+    match /user/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /tasks/{docId} {
+      allow read, write: if true;
+    }
+    match /settings/{docId} {
+      allow read, write: if true;
+    }
+  }
+}
