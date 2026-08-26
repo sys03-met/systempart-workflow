@@ -132,25 +132,42 @@
         </div>
       </template>
 
-      <div v-else-if="!visibleTasks.length" class="empty">표시할 작업이 없습니다.</div>
-      <div v-else class="table-wrap">
+      <div v-else-if="!sortedTasks.length" class="empty">표시할 작업이 없습니다.</div>
+      <div v-else>
+        <div class="list-meta">
+          <span class="list-count">총 <strong>{{ sortedTasks.length }}</strong>건</span>
+          <div class="page-size" role="group" aria-label="페이지당 건수">
+            <span class="page-size-label">보기</span>
+            <div class="page-size-group">
+              <button
+                v-for="size in pageSizeOptions"
+                :key="size"
+                type="button"
+                class="page-size-btn"
+                :class="{ active: pageSize === size }"
+                @click="pageSize = size"
+              >{{ size }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap">
         <table class="work">
           <thead>
             <tr>
-              <th>순번</th>
-              <th>지시일</th>
-              <th>요청자</th>
-              <th>파트</th>
+              <th class="sortable" @click="toggleSort('seq')">순번{{ sortMark('seq') }}</th>
+              <th class="sortable col-date" @click="toggleSort('instructedAt')">지시일{{ sortMark('instructedAt') }}</th>
+              <th class="sortable" @click="toggleSort('requester')">요청자{{ sortMark('requester') }}</th>
+              <th class="sortable" @click="toggleSort('parts')">파트{{ sortMark('parts') }}</th>
               <th>작업명</th>
-              <th>예정일</th>
-              <th>진행률</th>
+              <th class="sortable col-date" @click="toggleSort('dueDate')">예정일{{ sortMark('dueDate') }}</th>
+              <th class="sortable" @click="toggleSort('progress')">진행률{{ sortMark('progress') }}</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="task in visibleTasks" :key="task.id" :style="rowStyle(task)">
               <td class="seq">{{ task.seq }}</td>
-              <td>{{ task.instructedAt || '-' }}</td>
+              <td class="col-date">{{ task.instructedAt || '-' }}</td>
               <td>{{ task.requester || '-' }}</td>
               <td>
                 <div class="parts">
@@ -185,7 +202,7 @@
                 </ul>
                 <div v-if="subtaskSummary(task)" class="sub-summary">{{ subtaskSummary(task) }}</div>
               </td>
-              <td>{{ task.dueDate || '-' }}</td>
+              <td class="col-date">{{ task.dueDate || '-' }}</td>
               <td>
                 <div class="progress">
                   <div class="bar" :class="{ done: task.progress >= 100 }">
@@ -202,6 +219,19 @@
             </tr>
           </tbody>
         </table>
+        </div>
+        <div class="pager" v-if="pageCount > 1">
+          <button class="btn" :disabled="page <= 1" @click="goPage(page - 1)">이전</button>
+          <button
+            v-for="n in pageNumbers"
+            :key="n"
+            class="btn"
+            :class="{ 'btn-primary': n === page }"
+            @click="goPage(n)"
+          >{{ n }}</button>
+          <button class="btn" :disabled="page >= pageCount" @click="goPage(page + 1)">다음</button>
+          <span class="pager-info">{{ page }} / {{ pageCount }} 페이지</span>
+        </div>
       </div>
     </section>
 

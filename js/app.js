@@ -11,7 +11,7 @@
   const LOCAL_TASKS_KEY = "systempart.tasks";
   const LOCAL_PARTS_KEY = "systempart.parts";
   const fb = window.AppFirebase;
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE_OPTIONS = [10, 30, 50];
 
   function todayStamp() {
     const d = new Date();
@@ -108,6 +108,8 @@
         cmp = (a.parts || []).join(",").localeCompare((b.parts || []).join(","), "ko");
       } else if (key === "dueDate") {
         cmp = String(a.dueDate || "").localeCompare(String(b.dueDate || ""));
+      } else if (key === "progress") {
+        cmp = (Number(a.progress) || 0) - (Number(b.progress) || 0);
       } else {
         return 0;
       }
@@ -365,7 +367,12 @@
         currentUser: null,
         loginForm: { id: "" },
         loginError: "",
-        loginBusy: false
+        loginBusy: false,
+        sortKey: "",
+        sortDir: "asc",
+        pageSize: 10,
+        page: 1,
+        pageSizeOptions: PAGE_SIZE_OPTIONS
       };
     },
     computed: {
@@ -391,8 +398,26 @@
           return blob.includes(this.keyword.toLowerCase());
         });
       },
+      sortedTasks() {
+        if (!this.sortKey) return this.filteredBase;
+        return sortTasksBy(this.filteredBase, this.sortKey, this.sortDir);
+      },
+      pageCount() {
+        return Math.max(1, Math.ceil(this.sortedTasks.length / this.pageSize));
+      },
       visibleTasks() {
-        return this.filteredBase;
+        const start = (this.page - 1) * this.pageSize;
+        return this.sortedTasks.slice(start, start + this.pageSize);
+      },
+      pageNumbers() {
+        const total = this.pageCount;
+        const current = this.page;
+        const nums = [];
+        let from = Math.max(1, current - 2);
+        let to = Math.min(total, from + 4);
+        from = Math.max(1, to - 4);
+        for (let i = from; i <= to; i += 1) nums.push(i);
+        return nums;
       },
       requesterOptions() {
         return [...new Set(this.tasks.map((t) => t.requester).filter(Boolean))].sort((a, b) =>
@@ -503,6 +528,19 @@
                 ? "#/calendar"
                 : "#/";
         if (location.hash !== next) location.hash = next;
+        this.page = 1;
+      },
+      partFilter() {
+        this.page = 1;
+      },
+      keyword() {
+        this.page = 1;
+      },
+      pageSize() {
+        this.page = 1;
+      },
+      sortedTasks() {
+        if (this.page > this.pageCount) this.page = this.pageCount;
       },
       "form.instructedAt"(value, previous) {
         if (!this.form.open) return;
@@ -564,6 +602,23 @@
         }
         this.calendarYear = year;
         this.calendarMonth = month;
+      },
+      toggleSort(key) {
+        if (this.sortKey === key) {
+          this.sortDir = this.sortDir === "asc" ? "desc" : "asc";
+        } else {
+          this.sortKey = key;
+          this.sortDir = "asc";
+        }
+        this.page = 1;
+      },
+      sortMark(key) {
+        if (this.sortKey !== key) return "";
+        return this.sortDir === "asc" ? " ▲" : " ▼";
+      },
+      goPage(n) {
+        const page = Math.max(1, Math.min(this.pageCount, n));
+        this.page = page;
       },
       rowStyle(task) {
         if (!task.color) return {};
