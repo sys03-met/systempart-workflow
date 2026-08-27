@@ -325,13 +325,14 @@
   }
 
   function blankForm() {
+    const today = todayStamp();
     return {
       open: false,
       id: "",
       seq: 0,
-      instructedAt: todayStamp().slice(0, 7),
+      instructedAt: today,
       requester: "",
-      dueDate: defaultDueDate(todayStamp().slice(0, 7), ""),
+      dueDate: defaultDueDate(today, ""),
       progress: 0,
       parts: [],
       title: "",
