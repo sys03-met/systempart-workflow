@@ -66,14 +66,20 @@
 
       <div class="toolbar">
         <div class="filters">
-          <button class="chip" :class="{ active: partFilter === '전체' }" @click="partFilter = '전체'">전체</button>
+          <button class="chip" :class="{ active: partFilter === '전체' }" @click="partFilter = '전체'">
+            전체
+            <span v-if="view === 'active'" class="chip-count">{{ activeCount }}</span>
+          </button>
           <button
             v-for="part in parts"
             :key="part"
             class="chip"
             :class="{ active: partFilter === part }"
             @click="partFilter = part"
-          >{{ part }}</button>
+          >
+            {{ part }}
+            <span v-if="view === 'active'" class="chip-count">{{ activePartCounts[part] || 0 }}</span>
+          </button>
         </div>
         <div class="search" v-if="view !== 'calendar'">
           <input v-model.trim="keyword" type="search" placeholder="작업명, 세부내용, 요청자 검색" />
@@ -186,10 +192,24 @@
                 </div>
                 <div
                   v-if="task.detail"
-                  class="detail-preview"
-                  :class="{ open: expandedId === task.id }"
-                  @click="expandedId = expandedId === task.id ? null : task.id"
-                >{{ task.detail }}</div>
+                  class="detail-preview-wrap"
+                  :class="{ open: expandedId === task.id, clamped: detailIsLong(task.detail) }"
+                >
+                  <div
+                    class="detail-preview"
+                    @click="toggleDetail(task.id)"
+                  >{{ task.detail }}</div>
+                  <button
+                    v-if="detailIsLong(task.detail)"
+                    type="button"
+                    class="detail-toggle"
+                    :aria-expanded="expandedId === task.id"
+                    :title="expandedId === task.id ? '접기' : '더보기'"
+                    @click="toggleDetail(task.id)"
+                  >
+                    <span class="detail-toggle-icon">{{ expandedId === task.id ? '▲' : '▼' }}</span>
+                  </button>
+                </div>
                 <ul v-if="task.subtasks && task.subtasks.length" class="subtask-list">
                   <li
                     v-for="item in task.subtasks"

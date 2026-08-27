@@ -388,6 +388,18 @@
       doneCount() {
         return this.doneTasks.length;
       },
+      activePartCounts() {
+        const counts = {};
+        this.parts.forEach((part) => {
+          counts[part] = 0;
+        });
+        this.activeTasks.forEach((task) => {
+          (task.parts || []).forEach((part) => {
+            counts[part] = (counts[part] || 0) + 1;
+          });
+        });
+        return counts;
+      },
       filteredBase() {
         const source = this.view === "done" ? this.doneTasks : this.activeTasks;
         return source.filter((task) => {
@@ -632,6 +644,14 @@
         if (!list.length) return "";
         const done = list.filter((item) => item.status === "완료").length;
         return `${done}/${list.length} 완료`;
+      },
+      detailIsLong(text) {
+        if (!text) return false;
+        if (text.split("\n").length > 3) return true;
+        return text.length > 90;
+      },
+      toggleDetail(id) {
+        this.expandedId = this.expandedId === id ? null : id;
       },
       async connect() {
         if (this.unsubscribe) {
