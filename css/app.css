@@ -397,6 +397,13 @@ table.work {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.col-requester {
+  min-width: 4.5em;
+  width: 4.5em;
+}
+.requester-oneline {
+  white-space: nowrap;
+}
 .title-cell { font-weight: 700; }
 .detail-preview-wrap {
   margin-top: 6px;

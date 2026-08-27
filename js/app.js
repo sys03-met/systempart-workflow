@@ -651,6 +651,10 @@
         if (text.split("\n").length > 3) return true;
         return text.length > 90;
       },
+      requesterOneLine(name) {
+        const text = String(name || "").trim();
+        return text.length > 0 && text.length <= 4;
+      },
       toggleDetail(id) {
         this.expandedId = this.expandedId === id ? null : id;
       },

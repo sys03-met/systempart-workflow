@@ -206,7 +206,7 @@
             <tr>
               <th class="sortable" @click="toggleSort('seq')">순번{{ sortMark('seq') }}</th>
               <th class="sortable col-date" @click="toggleSort('instructedAt')">지시일{{ sortMark('instructedAt') }}</th>
-              <th class="sortable" @click="toggleSort('requester')">요청자{{ sortMark('requester') }}</th>
+              <th class="sortable col-requester" @click="toggleSort('requester')">요청자{{ sortMark('requester') }}</th>
               <th class="sortable" @click="toggleSort('parts')">파트{{ sortMark('parts') }}</th>
               <th>작업명</th>
               <th class="sortable col-date" @click="toggleSort('dueDate')">예정일{{ sortMark('dueDate') }}</th>
@@ -218,7 +218,7 @@
             <tr v-for="task in visibleTasks" :key="task.id" :style="rowStyle(task)">
               <td class="seq">{{ task.seq }}</td>
               <td class="col-date">{{ task.instructedAt || '-' }}</td>
-              <td>{{ task.requester || '-' }}</td>
+              <td class="col-requester" :class="{ 'requester-oneline': requesterOneLine(task.requester) }">{{ task.requester || '-' }}</td>
               <td>
                 <div class="parts">
                   <span
@@ -318,7 +318,7 @@
               </div>
               <div>
                 <dt>요청자</dt>
-                <dd>{{ task.requester || '-' }}</dd>
+                <dd :class="{ 'requester-oneline': requesterOneLine(task.requester) }">{{ task.requester || '-' }}</dd>
               </div>
             </dl>
             <div
