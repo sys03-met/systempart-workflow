@@ -11,7 +11,21 @@
   <div id="app">
     <div v-if="needLogin" class="login-page">
       <div class="login-card">
-        <div class="mark">SP</div>
+        <div class="mark" aria-hidden="true">
+          <svg class="mark-rabbit" viewBox="0 0 64 64" width="34" height="34">
+            <ellipse cx="21" cy="17" rx="7.5" ry="17" fill="#fff" transform="rotate(-10 21 17)"/>
+            <ellipse cx="43" cy="17" rx="7.5" ry="17" fill="#fff" transform="rotate(10 43 17)"/>
+            <ellipse cx="21" cy="19" rx="4.5" ry="11" fill="#ffc9dc" transform="rotate(-10 21 19)"/>
+            <ellipse cx="43" cy="19" rx="4.5" ry="11" fill="#ffc9dc" transform="rotate(10 43 19)"/>
+            <circle cx="32" cy="39" r="19" fill="#fff"/>
+            <circle cx="25.5" cy="36.5" r="3" fill="#16324f"/>
+            <circle cx="38.5" cy="36.5" r="3" fill="#16324f"/>
+            <circle cx="26.3" cy="35.5" r="1" fill="#fff"/>
+            <circle cx="39.3" cy="35.5" r="1" fill="#fff"/>
+            <ellipse cx="32" cy="43" rx="3.2" ry="2.4" fill="#ff9eb8"/>
+            <path d="M32 45.5c-2.2 2-4.8 2-7 0" fill="none" stroke="#16324f" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </div>
         <h1>시스템파트 진행업무</h1>
         <p>아이디를 입력하세요.</p>
         <label class="field">
@@ -31,17 +45,31 @@
     <template v-else>
     <header class="topbar">
       <div class="brand">
-        <div class="mark">SP</div>
+        <div class="mark" aria-hidden="true">
+          <svg class="mark-rabbit" viewBox="0 0 64 64" width="34" height="34">
+            <ellipse cx="21" cy="17" rx="7.5" ry="17" fill="#fff" transform="rotate(-10 21 17)"/>
+            <ellipse cx="43" cy="17" rx="7.5" ry="17" fill="#fff" transform="rotate(10 43 17)"/>
+            <ellipse cx="21" cy="19" rx="4.5" ry="11" fill="#ffc9dc" transform="rotate(-10 21 19)"/>
+            <ellipse cx="43" cy="19" rx="4.5" ry="11" fill="#ffc9dc" transform="rotate(10 43 19)"/>
+            <circle cx="32" cy="39" r="19" fill="#fff"/>
+            <circle cx="25.5" cy="36.5" r="3" fill="#16324f"/>
+            <circle cx="38.5" cy="36.5" r="3" fill="#16324f"/>
+            <circle cx="26.3" cy="35.5" r="1" fill="#fff"/>
+            <circle cx="39.3" cy="35.5" r="1" fill="#fff"/>
+            <ellipse cx="32" cy="43" rx="3.2" ry="2.4" fill="#ff9eb8"/>
+            <path d="M32 45.5c-2.2 2-4.8 2-7 0" fill="none" stroke="#16324f" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </div>
         <div>
           <h1>시스템파트 진행업무</h1>
         </div>
       </div>
       <div class="top-actions">
-        <span v-if="currentUser" class="who">{{ currentUser.name }}</span>
+        <span v-if="currentUser" class="who">{{ currentUser.name }}<span class="who-suffix">님</span></span>
         <button v-if="currentUser" class="btn" @click="logout">로그아웃</button>
         <button class="btn" @click="view = 'settings'">설정</button>
         <button class="btn" @click="exportExcel" :disabled="view !== 'active'">엑셀 다운로드</button>
-        <button class="btn btn-primary" @click="openCreate">작업 등록</button>
+        <button class="btn btn-primary create-desktop" @click="openCreate">작업 등록</button>
       </div>
     </header>
 
@@ -156,7 +184,23 @@
             </div>
           </div>
         </div>
-        <div class="table-wrap">
+        <div class="mobile-sort">
+          <label class="mobile-sort-field">
+            <span>정렬</span>
+            <select v-model="sortKey">
+              <option value="seq">순번</option>
+              <option value="instructedAt">지시일</option>
+              <option value="requester">요청자</option>
+              <option value="parts">파트</option>
+              <option value="dueDate">예정일</option>
+              <option value="progress">진행률</option>
+            </select>
+          </label>
+          <button type="button" class="btn mobile-sort-dir" @click="sortDir = sortDir === 'asc' ? 'desc' : 'asc'">
+            {{ sortDir === 'asc' ? '오름차순 ▲' : '내림차순 ▼' }}
+          </button>
+        </div>
+        <div class="table-wrap desktop-only">
         <table class="work">
           <thead>
             <tr>
@@ -239,6 +283,81 @@
             </tr>
           </tbody>
         </table>
+        </div>
+        <div class="task-cards mobile-only">
+          <article
+            v-for="task in visibleTasks"
+            :key="'card-' + task.id"
+            class="task-card"
+            :style="rowStyle(task)"
+          >
+            <header class="task-card-head">
+              <span class="task-card-seq">#{{ task.seq }}</span>
+              <div class="parts">
+                <span
+                  v-for="part in task.parts"
+                  :key="part"
+                  class="tag"
+                  :style="{ background: partColor(part) }"
+                >{{ part }}</span>
+              </div>
+              <button type="button" class="btn" @click="openEdit(task)">수정</button>
+            </header>
+            <h3 class="task-card-title">
+              <span v-if="task.important" class="important-badge">중요</span>
+              {{ task.title }}
+            </h3>
+            <dl class="task-card-meta">
+              <div>
+                <dt>지시일</dt>
+                <dd>{{ task.instructedAt || '-' }}</dd>
+              </div>
+              <div>
+                <dt>예정일</dt>
+                <dd>{{ task.dueDate || '-' }}</dd>
+              </div>
+              <div>
+                <dt>요청자</dt>
+                <dd>{{ task.requester || '-' }}</dd>
+              </div>
+            </dl>
+            <div
+              v-if="task.detail"
+              class="detail-preview-wrap"
+              :class="{ open: expandedId === task.id, clamped: detailIsLong(task.detail) }"
+            >
+              <div class="detail-preview" @click="toggleDetail(task.id)">{{ task.detail }}</div>
+              <button
+                v-if="detailIsLong(task.detail)"
+                type="button"
+                class="detail-toggle"
+                :aria-expanded="expandedId === task.id"
+                :title="expandedId === task.id ? '접기' : '더보기'"
+                @click="toggleDetail(task.id)"
+              >
+                <span class="detail-toggle-icon">{{ expandedId === task.id ? '▲' : '▼' }}</span>
+              </button>
+            </div>
+            <ul v-if="task.subtasks && task.subtasks.length" class="subtask-list">
+              <li
+                v-for="item in task.subtasks"
+                :key="item.id"
+                :class="{ done: item.status === '완료' }"
+              >
+                <span class="sub-status">{{ item.status }}</span>
+                {{ item.text }}
+              </li>
+            </ul>
+            <div v-if="subtaskSummary(task)" class="sub-summary">{{ subtaskSummary(task) }}</div>
+            <div class="task-card-progress">
+              <div class="progress">
+                <div class="bar" :class="{ done: task.progress >= 100 }">
+                  <span :style="{ width: Math.max(0, Math.min(100, task.progress)) + '%' }"></span>
+                </div>
+                <strong>{{ task.progress }}%</strong>
+              </div>
+            </div>
+          </article>
         </div>
         <div class="pager" v-if="pageCount > 1">
           <button class="btn" :disabled="page <= 1" @click="goPage(page - 1)">이전</button>
@@ -399,6 +518,17 @@
         </footer>
       </div>
     </div>
+    <button
+      v-if="!form.open"
+      type="button"
+      class="fab-create"
+      aria-label="작업 등록"
+      @click="openCreate"
+    >
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"/>
+      </svg>
+    </button>
     </template>
   </div>
 

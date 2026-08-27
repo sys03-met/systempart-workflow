@@ -667,13 +667,11 @@
         this.storageMode = result.mode;
         this.db = fb.db;
         if (result.mode === "local") {
-          this.startLocal(
-            result.reason === "STORAGE_MODE=local"
-              ? "STORAGE_MODE=local 이라 이 브라우저에 저장합니다."
-              : result.reason
-                ? result.reason + " → 로컬 저장합니다."
-                : "이 브라우저에 저장합니다."
-          );
+          const warnMsg =
+            result.reason && result.reason !== "STORAGE_MODE=local"
+              ? result.reason + " → 로컬 저장합니다."
+              : "";
+          this.startLocal(warnMsg);
           return;
         }
         this.currentUser = fb.readSession();
@@ -695,7 +693,6 @@
           (rows) => {
             this.tasks = rows.map((row) => normalizeTask(row, row.id));
             this.loading = false;
-            this.setStatus("ok", "Firebase에 저장합니다.");
           },
           (err) => {
             this.loading = false;
@@ -771,7 +768,7 @@
         this.tasks = readLocalTasks();
         this.parts = readLocalParts();
         this.loading = false;
-        this.setStatus("ok", message || "이 브라우저에 저장합니다.");
+        this.setStatus(message ? "warn" : "ok", message || "");
       },
       persistParts(parts) {
         fb.saveParts(parts).catch(() => {
