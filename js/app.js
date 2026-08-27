@@ -369,8 +369,8 @@
         loginForm: { id: "" },
         loginError: "",
         loginBusy: false,
-        sortKey: "",
-        sortDir: "asc",
+        sortKey: "seq",
+        sortDir: "desc",
         pageSize: 10,
         page: 1,
         pageSizeOptions: PAGE_SIZE_OPTIONS
@@ -621,7 +621,7 @@
           this.sortDir = this.sortDir === "asc" ? "desc" : "asc";
         } else {
           this.sortKey = key;
-          this.sortDir = "asc";
+          this.sortDir = key === "seq" ? "desc" : "asc";
         }
         this.page = 1;
       },
