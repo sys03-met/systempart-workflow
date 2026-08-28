@@ -17,6 +17,10 @@
   --part-web: #6c3483;
   --part-nms: #0e6655;
   --part-research: #9a3412;
+  --part-material: #0891b2;
+  --part-sg: #2563eb;
+  --part-hv: #be185d;
+  --part-etc: #6b7280;
 }
 
 * { box-sizing: border-box; }
@@ -297,6 +301,50 @@ button, input, select, textarea {
   color: #fff;
 }
 
+.chip-part {
+  color: var(--chip-color);
+}
+
+.chip-part-label {
+  position: relative;
+  display: inline-block;
+}
+
+.chip-part-label::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  height: 3px;
+  border-radius: 99px;
+  background: var(--chip-color);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.chip.chip-part.active {
+  border-color: color-mix(in srgb, var(--chip-color) 45%, var(--line));
+  background: #fff;
+  color: var(--chip-color);
+}
+
+.chip.chip-part.active .chip-part-label::after {
+  height: 4px;
+  opacity: 1;
+}
+
+.chip-part .chip-count {
+  background: #eef2f6;
+  color: var(--muted);
+}
+
+.chip.chip-part.active .chip-count {
+  background: color-mix(in srgb, var(--chip-color) 16%, #fff);
+  color: var(--chip-color);
+}
+
 .chip-count {
   display: inline-flex;
   align-items: center;
@@ -574,6 +622,10 @@ table.work col.col-actions { width: 116px; }
 .tag.WEB { background: var(--part-web); }
 .tag.NMS { background: var(--part-nms); }
 .tag.연구과제 { background: var(--part-research); }
+.tag.자재관리 { background: var(--part-material); }
+.tag.SG { background: var(--part-sg); }
+.tag.고압 { background: var(--part-hv); }
+.tag.기타 { background: var(--part-etc); }
 
 .progress {
   display: flex;
@@ -1125,15 +1177,29 @@ table.work col.col-actions { width: 116px; }
 .gantt-row:hover { background: #f8fbff; }
 
 .gantt-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   font-size: 13px;
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   padding-right: 8px;
 }
 
-.gantt-name.done {
+.gantt-name-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.important-badge--inline {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.gantt-name.done .gantt-name-text {
   color: var(--muted);
   text-decoration: line-through;
 }

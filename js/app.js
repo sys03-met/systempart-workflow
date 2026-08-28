@@ -5,7 +5,11 @@
     검침: "#1d4e89",
     WEB: "#6c3483",
     NMS: "#0e6655",
-    연구과제: "#9a3412"
+    연구과제: "#9a3412",
+    자재관리: "#0891b2",
+    SG: "#2563eb",
+    고압: "#be185d",
+    기타: "#6b7280"
   };
   const TASK_COLOR_PRESETS = ["#1f4e79", "#1a7a6d", "#6c3483", "#b03a2e", "#b9770e", "#1e8449", "#5d6d7e"];
   const IMPORTANT_TASK_COLOR = "#b03a2e";
@@ -515,11 +519,15 @@
             return span.end >= monthStart && span.start <= monthEnd;
           })
           .sort((a, b) => {
-            const sa = taskSpan(a);
-            const sb = taskSpan(b);
-            const da = sa.start - sb.start;
-            if (da !== 0) return da;
-            return (a.seq || 0) - (b.seq || 0);
+            const aDone = clampProgress(a.progress) >= 100;
+            const bDone = clampProgress(b.progress) >= 100;
+            if (aDone !== bDone) return aDone ? 1 : -1;
+            if (!aDone) {
+              const ai = Boolean(a.important);
+              const bi = Boolean(b.important);
+              if (ai !== bi) return ai ? -1 : 1;
+            }
+            return (Number(b.seq) || 0) - (Number(a.seq) || 0);
           })
           .map((task) => {
             const span = taskSpan(task);
@@ -534,6 +542,7 @@
               id: task.id,
               task,
               title: task.title,
+              important: Boolean(task.important),
               done: task.progress >= 100,
               color: task.color || this.partColor((task.parts || [])[0] || "") || "#1f4e79",
               left: planned.left,
@@ -595,6 +604,9 @@
     },
     methods: {
       partColor,
+      partChipStyle(part) {
+        return { "--chip-color": partColor(part) };
+      },
       emptyForm(task) {
         if (!task) {
           const form = blankForm();

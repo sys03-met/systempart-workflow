@@ -97,11 +97,12 @@
           <button
             v-for="part in parts"
             :key="part"
-            class="chip"
+            class="chip chip-part"
             :class="{ active: partFilter === part }"
+            :style="partChipStyle(part)"
             @click="partFilter = part"
           >
-            {{ part }}
+            <span class="chip-part-label">{{ part }}</span>
             <span v-if="view === 'active'" class="chip-count">{{ activePartCounts[part] || 0 }}</span>
           </button>
         </div>
@@ -137,7 +138,10 @@
             class="gantt-row"
             @click="openEdit(row.task)"
           >
-            <div class="gantt-name" :class="{ done: row.done }">{{ row.title }}</div>
+            <div class="gantt-name" :class="{ done: row.done }">
+              <span v-if="row.important" class="important-badge important-badge--inline">중요</span>
+              <span class="gantt-name-text">{{ row.title }}</span>
+            </div>
             <div class="gantt-track" :style="calendarGridStyle">
               <span
                 v-for="day in calendarDays"
