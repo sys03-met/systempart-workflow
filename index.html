@@ -383,12 +383,30 @@
       <h3>작업 파트</h3>
       <ul class="part-editor">
         <li v-for="part in parts" :key="part">
-          <span class="tag" :style="{ background: partColor(part) }">{{ part }}</span>
-          <button class="btn btn-danger" @click="removePart(part)">삭제</button>
+          <template v-if="editingPart === part">
+            <input
+              class="part-rename-input"
+              v-model.trim="editingPartName"
+              :maxlength="MAX_PART_NAME_LENGTH"
+              @keyup.enter="renamePart(part)"
+              @keyup.escape="cancelRenamePart"
+            />
+            <div class="part-editor-actions">
+              <button type="button" class="btn btn-teal" @click="renamePart(part)">저장</button>
+              <button type="button" class="btn" @click="cancelRenamePart">취소</button>
+            </div>
+          </template>
+          <template v-else>
+            <span class="tag" :style="{ background: partColor(part) }">{{ part }}</span>
+            <div class="part-editor-actions">
+              <button type="button" class="btn" @click="startRenamePart(part)">이름 변경</button>
+              <button type="button" class="btn btn-danger" @click="removePart(part)">삭제</button>
+            </div>
+          </template>
         </li>
       </ul>
       <div class="part-add">
-        <input v-model.trim="newPartName" placeholder="새 파트 이름" @keyup.enter="addPart" />
+        <input v-model.trim="newPartName" :maxlength="MAX_PART_NAME_LENGTH" placeholder="새 파트 이름 (최대 5글자)" @keyup.enter="addPart" />
         <button class="btn btn-teal" @click="addPart">파트 추가</button>
       </div>
 
@@ -400,7 +418,6 @@
           CSV 가져오기
           <input type="file" accept=".csv,text/csv" @change="importCsvFile" />
         </label>
-        <button class="btn" @click="importSeed">기본 엑셀 원본 가져오기</button>
       </div>
     </section>
 
@@ -538,7 +555,6 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="./js/env.js"></script>
   <script src="./js/firebase.js"></script>
-  <script src="./js/seed-data.js"></script>
   <script src="./js/app.js"></script>
 </body>
 </html>

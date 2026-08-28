@@ -879,6 +879,22 @@ table.work {
   border-bottom: 1px solid var(--line);
 }
 
+.part-editor-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.part-rename-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
 .part-add {
   display: flex;
   gap: 8px;

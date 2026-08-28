@@ -12,6 +12,14 @@
   const LOCAL_PARTS_KEY = "systempart.parts";
   const fb = window.AppFirebase;
   const PAGE_SIZE_OPTIONS = [10, 30, 50];
+  const MAX_PART_NAME_LENGTH = 5;
+
+  function partNameError(name) {
+    const text = String(name || "").trim();
+    if (!text) return "파트 이름을 입력하세요.";
+    if (text.length > MAX_PART_NAME_LENGTH) return `파트 이름은 최대 ${MAX_PART_NAME_LENGTH}글자까지 가능합니다.`;
+    return "";
+  }
 
   function todayStamp() {
     const d = new Date();
@@ -346,7 +354,7 @@
   createApp({
     data() {
       return {
-        TASK_COLOR_PRESETS,
+        MAX_PART_NAME_LENGTH,
         view: "active",
         partFilter: "전체",
         keyword: "",
@@ -361,6 +369,8 @@
         unsubscribeSettings: null,
         form: blankForm(),
         newPartName: "",
+        editingPart: null,
+        editingPartName: "",
         requesterOpen: false,
         requesterIndex: 0,
         calendarYear: new Date().getFullYear(),
@@ -781,8 +791,9 @@
       },
       addPart() {
         const name = this.newPartName.trim();
-        if (!name) {
-          this.setStatus("err", "파트 이름을 입력하세요.");
+        const error = partNameError(name);
+        if (error) {
+          this.setStatus("err", error);
           return;
         }
         if (this.parts.includes(name)) {
@@ -802,8 +813,67 @@
         if (!confirm(`'${name}' 파트를 삭제할까요? 기존 작업의 표시는 유지됩니다.`)) return;
         this.parts = this.parts.filter((part) => part !== name);
         if (this.partFilter === name) this.partFilter = "전체";
+        if (this.editingPart === name) this.cancelRenamePart();
         this.persistParts(this.parts);
         this.setStatus("ok", `'${name}' 파트를 삭제했습니다.`);
+      },
+      startRenamePart(name) {
+        this.editingPart = name;
+        this.editingPartName = name;
+      },
+      cancelRenamePart() {
+        this.editingPart = null;
+        this.editingPartName = "";
+      },
+      async renamePart(oldName) {
+        const next = this.editingPartName.trim();
+        const error = partNameError(next);
+        if (error) {
+          this.setStatus("err", error);
+          return;
+        }
+        if (next === oldName) {
+          this.cancelRenamePart();
+          return;
+        }
+        if (this.parts.includes(next)) {
+          this.setStatus("warn", "이미 있는 파트 이름입니다.");
+          return;
+        }
+        this.parts = this.parts.map((part) => (part === oldName ? next : part));
+        if (this.partFilter === oldName) this.partFilter = next;
+        if (this.form.parts.includes(oldName)) {
+          this.form.parts = this.form.parts.map((part) => (part === oldName ? next : part));
+        }
+        const affected = this.tasks.filter((task) => (task.parts || []).includes(oldName));
+        this.tasks = this.tasks.map((task) => {
+          if (!(task.parts || []).includes(oldName)) return task;
+          return {
+            ...task,
+            parts: task.parts.map((part) => (part === oldName ? next : part)),
+            updatedAt: Date.now()
+          };
+        });
+        this.persistParts(this.parts);
+        try {
+          if (fb.mode === "firebase" && fb.db) {
+            await Promise.all(
+              affected.map((task) => {
+                const updated = this.tasks.find((item) => item.id === task.id);
+                return fb.saveTask(task.id, {
+                  parts: updated.parts,
+                  updatedAt: updated.updatedAt
+                });
+              })
+            );
+          } else {
+            writeLocalTasks(this.tasks);
+          }
+          this.cancelRenamePart();
+          this.setStatus("ok", `'${oldName}' 파트를 '${next}'(으)로 변경했습니다.`);
+        } catch (err) {
+          this.setStatus("err", "파트 이름 변경 실패: " + err.message);
+        }
       },
       payloadFromForm() {
         const progress = clampProgress(this.form.progress);
@@ -921,12 +991,6 @@
           this.setStatus("err", "삭제 실패: " + err.message);
         }
       },
-      applySeedLocal(seed) {
-        this.tasks = seed.map((item, idx) =>
-          normalizeTask({ ...item, id: "seed-" + (item.seq || idx + 1) }, "seed-" + (item.seq || idx + 1))
-        );
-        writeLocalTasks(this.tasks);
-      },
       async persistImportedTasks(items, replace) {
         if (!items.length) {
           this.setStatus("err", "등록할 데이터가 없습니다.");
@@ -1023,15 +1087,6 @@
         } catch (err) {
           this.setStatus("err", "CSV 읽기 실패: " + err.message);
         }
-      },
-      async importSeed() {
-        const seed = Array.isArray(window.SEED_TASKS) ? window.SEED_TASKS : [];
-        if (!seed.length) {
-          this.setStatus("err", "가져올 엑셀 데이터가 없습니다.");
-          return;
-        }
-        if (this.tasks.length && !confirm("기존 목록을 엑셀 원본으로 덮어쓸까요?")) return;
-        await this.persistImportedTasks(seed, true);
       },
       exportExcel() {
         if (this.view === "done") {
