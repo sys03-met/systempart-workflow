@@ -354,6 +354,7 @@
   createApp({
     data() {
       return {
+        TASK_COLOR_PRESETS,
         MAX_PART_NAME_LENGTH,
         view: "active",
         partFilter: "전체",
