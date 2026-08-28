@@ -337,9 +337,17 @@ button, input, select, textarea {
 
 table.work {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
-  min-width: 980px;
+  min-width: 1092px;
 }
+table.work col.col-seq { width: 52px; }
+table.work col.col-date { width: 118px; }
+table.work col.col-requester { width: 72px; }
+table.work col.col-parts { width: 96px; }
+table.work col.col-important { width: 68px; }
+table.work col.col-progress { width: 100px; }
+table.work col.col-actions { width: 116px; }
 
 .work th, .work td {
   padding: 11px 12px;
@@ -469,8 +477,30 @@ table.work {
   width: 4.5em;
 }
 .col-parts {
-  min-width: 88px;
-  width: 88px;
+  width: 96px;
+  min-width: 96px;
+}
+.col-important {
+  width: 68px;
+  min-width: 68px;
+  text-align: center;
+  vertical-align: middle;
+}
+.col-important .important-badge--cell {
+  margin: 0;
+  white-space: nowrap;
+}
+.cell-empty {
+  color: var(--muted);
+}
+.col-title {
+  width: auto;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.col-progress {
+  width: 100px;
+  min-width: 100px;
 }
 .requester-oneline {
   white-space: nowrap;
@@ -549,7 +579,8 @@ table.work {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 120px;
+  min-width: 0;
+  width: 100%;
 }
 
 .bar {
@@ -568,6 +599,13 @@ table.work {
 
 .bar.done > span { background: var(--ok); }
 
+.progress strong {
+  flex: 0 0 auto;
+  min-width: 2.5em;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 .empty {
   padding: 48px 16px;
   text-align: center;
@@ -582,10 +620,14 @@ table.work {
 }
 
 .col-actions {
-  width: 1%;
-  min-width: 156px;
+  width: 116px;
+  min-width: 116px;
   white-space: nowrap;
   vertical-align: middle;
+}
+
+.col-actions .row-actions .btn {
+  padding: 7px 8px;
 }
 
 .row-actions .btn,

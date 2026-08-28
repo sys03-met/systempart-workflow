@@ -188,6 +188,7 @@
               <option value="instructedAt">지시일</option>
               <option value="requester">요청자</option>
               <option value="parts">파트</option>
+              <option value="important">중요</option>
               <option value="dueDate">예정일</option>
               <option value="progress">진행률</option>
             </select>
@@ -198,15 +199,27 @@
         </div>
         <div class="table-wrap desktop-only">
         <table class="work">
+          <colgroup>
+            <col class="col-seq" />
+            <col class="col-date" />
+            <col class="col-requester" />
+            <col class="col-parts" />
+            <col class="col-important" />
+            <col class="col-title" />
+            <col class="col-date" />
+            <col class="col-progress" />
+            <col class="col-actions" />
+          </colgroup>
           <thead>
             <tr>
               <th class="sortable" @click="toggleSort('seq')">순번{{ sortMark('seq') }}</th>
               <th class="sortable col-date" @click="toggleSort('instructedAt')">지시일{{ sortMark('instructedAt') }}</th>
               <th class="sortable col-requester" @click="toggleSort('requester')">요청자{{ sortMark('requester') }}</th>
               <th class="sortable col-parts" @click="toggleSort('parts')">파트{{ sortMark('parts') }}</th>
-              <th>작업명</th>
+              <th class="sortable col-important" @click="toggleSort('important')">중요{{ sortMark('important') }}</th>
+              <th class="col-title">작업명</th>
               <th class="sortable col-date" @click="toggleSort('dueDate')">예정일{{ sortMark('dueDate') }}</th>
-              <th class="sortable" @click="toggleSort('progress')">진행률{{ sortMark('progress') }}</th>
+              <th class="sortable col-progress" @click="toggleSort('progress')">진행률{{ sortMark('progress') }}</th>
               <th class="col-actions"></th>
             </tr>
           </thead>
@@ -225,9 +238,12 @@
                   >{{ part }}</span>
                 </div>
               </td>
-              <td>
+              <td class="col-important">
+                <span v-if="task.important" class="important-badge important-badge--cell">중요</span>
+                <span v-else class="cell-empty">-</span>
+              </td>
+              <td class="col-title">
                 <div class="title-cell">
-                  <span v-if="task.important" class="important-badge">중요</span>
                   {{ task.title }}
                 </div>
                 <div
@@ -263,7 +279,7 @@
                 <div v-if="subtaskSummary(task)" class="sub-summary">{{ subtaskSummary(task) }}</div>
               </td>
               <td class="col-date">{{ task.dueDate || '-' }}</td>
-              <td>
+              <td class="col-progress">
                 <div class="progress">
                   <div class="bar" :class="{ done: task.progress >= 100 }">
                     <span :style="{ width: Math.max(0, Math.min(100, task.progress)) + '%' }"></span>
@@ -279,7 +295,7 @@
                     type="button"
                     class="btn btn-complete"
                     @click="completeTask(task)"
-                  >완료처리</button>
+                  >완료</button>
                 </div>
               </td>
             </tr>
@@ -310,7 +326,7 @@
                   type="button"
                   class="btn btn-complete"
                   @click="completeTask(task)"
-                >완료처리</button>
+                >완료</button>
               </div>
             </header>
             <h3 class="task-card-title">

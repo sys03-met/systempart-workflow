@@ -115,6 +115,8 @@
         cmp = String(a.requester || "").localeCompare(String(b.requester || ""), "ko");
       } else if (key === "parts") {
         cmp = (a.parts || []).join(",").localeCompare((b.parts || []).join(","), "ko");
+      } else if (key === "important") {
+        cmp = Number(Boolean(a.important)) - Number(Boolean(b.important));
       } else if (key === "dueDate") {
         cmp = String(a.dueDate || "").localeCompare(String(b.dueDate || ""));
       } else if (key === "progress") {
@@ -123,8 +125,16 @@
         return 0;
       }
       if (cmp !== 0) return cmp * factor;
-      return ((b.seq || 0) - (a.seq || 0));
+      if (Boolean(a.important) !== Boolean(b.important)) return a.important ? -1 : 1;
+      return (Number(b.seq) || 0) - (Number(a.seq) || 0);
     });
+  }
+
+  function defaultSort(partFilter) {
+    if (partFilter === "전체") {
+      return { sortKey: "seq", sortDir: "desc" };
+    }
+    return { sortKey: "important", sortDir: "desc" };
   }
 
   function clampProgress(value) {
@@ -557,6 +567,7 @@
         this.page = 1;
       },
       partFilter() {
+        this.applyDefaultSort();
         this.page = 1;
       },
       keyword() {
@@ -655,9 +666,14 @@
           this.sortDir = this.sortDir === "asc" ? "desc" : "asc";
         } else {
           this.sortKey = key;
-          this.sortDir = key === "seq" ? "desc" : "asc";
+          this.sortDir = key === "seq" || key === "important" ? "desc" : "asc";
         }
         this.page = 1;
+      },
+      applyDefaultSort() {
+        const next = defaultSort(this.partFilter);
+        this.sortKey = next.sortKey;
+        this.sortDir = next.sortDir;
       },
       sortMark(key) {
         if (this.sortKey !== key) return "";
