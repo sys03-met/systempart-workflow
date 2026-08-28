@@ -15,6 +15,8 @@
   const IMPORTANT_TASK_COLOR = "#b03a2e";
   const LOCAL_TASKS_KEY = "systempart.tasks";
   const LOCAL_PARTS_KEY = "systempart.parts";
+  const LOCAL_DRAFTS_KEY = "systempart.formDrafts";
+  const DRAFT_NEW_KEY = "__new__";
   const fb = window.AppFirebase;
   const PAGE_SIZE_OPTIONS = [10, 30, 50];
   const MAX_PART_NAME_LENGTH = 5;
@@ -415,6 +417,74 @@
     };
   }
 
+  function readFormDrafts() {
+    try {
+      const raw = localStorage.getItem(LOCAL_DRAFTS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeFormDrafts(drafts) {
+    localStorage.setItem(LOCAL_DRAFTS_KEY, JSON.stringify(drafts));
+  }
+
+  function formDraftKey(form) {
+    return form?.id || DRAFT_NEW_KEY;
+  }
+
+  function isFormDraftEmpty(draft) {
+    if (!draft) return true;
+    if (String(draft.title || "").trim()) return false;
+    if (String(draft.detail || "").trim()) return false;
+    if (String(draft.requester || "").trim()) return false;
+    if ((draft.parts || []).length) return false;
+    if ((draft.subtasks || []).some((item) => String(item.text || "").trim())) return false;
+    if (draft.important) return false;
+    if (draft.color) return false;
+    if (Number(draft.progress) > 0) return false;
+    return true;
+  }
+
+  function snapshotFormDraft(form) {
+    return {
+      id: form.id || "",
+      seq: form.seq || 0,
+      instructedAt: form.instructedAt || "",
+      requester: form.requester || "",
+      dueDate: form.dueDate || "",
+      progress: clampProgress(form.progress),
+      parts: [...(form.parts || [])],
+      title: form.title || "",
+      detail: form.detail || "",
+      color: form.color || "",
+      important: Boolean(form.important),
+      subtasks: normalizeSubtasks(form.subtasks).map((item) => ({ ...item })),
+      savedAt: Date.now()
+    };
+  }
+
+  function draftToForm(draft) {
+    const today = todayStamp();
+    return {
+      open: true,
+      id: draft.id || "",
+      seq: draft.seq || 0,
+      instructedAt: draft.instructedAt || today,
+      requester: draft.requester || "",
+      dueDate: draft.dueDate || defaultDueDate(draft.instructedAt || today, ""),
+      progress: clampProgress(draft.progress),
+      parts: [...(draft.parts || [])],
+      title: draft.title || "",
+      detail: draft.detail || "",
+      color: draft.color || "",
+      important: Boolean(draft.important),
+      subtasks: normalizeSubtasks(draft.subtasks).map((item) => ({ ...item }))
+    };
+  }
+
   function blankExportForm() {
     return {
       open: false,
@@ -469,6 +539,8 @@
         unsubscribe: null,
         unsubscribeSettings: null,
         form: blankForm(),
+        formDraftSavedAt: null,
+        draftSaveTimer: null,
         newPartName: "",
         editingPart: null,
         editingPartName: "",
@@ -679,9 +751,17 @@
         if (!this.form.dueDate || this.form.dueDate === prevAuto) {
           this.form.dueDate = defaultDueDate(value, "");
         }
+      },
+      form: {
+        deep: true,
+        handler() {
+          if (!this.form.open) return;
+          this.scheduleFormDraftSave();
+        }
       }
     },
     unmounted() {
+      if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer);
       if (this.statusTimer) clearTimeout(this.statusTimer);
       if (this.unsubscribe) this.unsubscribe();
       if (this.unsubscribeSettings) this.unsubscribeSettings();
@@ -1033,12 +1113,76 @@
         return this.tasks.reduce((max, t) => Math.max(max, t.seq || 0), 0) + 1;
       },
       openCreate() {
-        this.form = this.emptyForm();
         this.requesterOpen = false;
+        this.openFormWithDraft(DRAFT_NEW_KEY, this.emptyForm());
       },
       openEdit(task) {
-        this.form = this.emptyForm(task);
         this.requesterOpen = false;
+        this.openFormWithDraft(task.id, this.emptyForm(task));
+      },
+      openFormWithDraft(key, fallbackForm) {
+        const draft = readFormDrafts()[key];
+        if (draft && !isFormDraftEmpty(draft)) {
+          this.form = draftToForm(draft);
+          this.formDraftSavedAt = draft.savedAt || null;
+          this.setStatus("ok", "임시저장된 내용을 불러왔습니다.");
+          return;
+        }
+        this.form = fallbackForm;
+        this.formDraftSavedAt = null;
+      },
+      scheduleFormDraftSave() {
+        if (this.draftSaveTimer) clearTimeout(this.draftSaveTimer);
+        this.draftSaveTimer = setTimeout(() => {
+          this.draftSaveTimer = null;
+          this.persistFormDraft();
+        }, 500);
+      },
+      persistFormDraft() {
+        if (!this.form.open) return;
+        const key = formDraftKey(this.form);
+        const snapshot = snapshotFormDraft(this.form);
+        const drafts = readFormDrafts();
+        if (isFormDraftEmpty(snapshot)) {
+          if (drafts[key]) {
+            delete drafts[key];
+            writeFormDrafts(drafts);
+          }
+          this.formDraftSavedAt = null;
+          return;
+        }
+        drafts[key] = snapshot;
+        writeFormDrafts(drafts);
+        this.formDraftSavedAt = snapshot.savedAt;
+      },
+      clearFormDraft(key) {
+        const drafts = readFormDrafts();
+        if (!drafts[key]) return;
+        delete drafts[key];
+        writeFormDrafts(drafts);
+        if (formDraftKey(this.form) === key) this.formDraftSavedAt = null;
+      },
+      discardFormDraft() {
+        if (!this.formDraftSavedAt) return;
+        if (!confirm("임시저장된 내용을 삭제할까요?")) return;
+        const key = formDraftKey(this.form);
+        this.clearFormDraft(key);
+        if (this.form.id) {
+          const task = this.tasks.find((item) => item.id === this.form.id);
+          this.form = task ? this.emptyForm(task) : blankForm();
+        } else {
+          this.form = this.emptyForm();
+        }
+        this.form.open = true;
+        this.setStatus("ok", "임시저장을 삭제했습니다.");
+      },
+      formatDraftTime(value) {
+        if (!value) return "";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return "";
+        const h = String(d.getHours()).padStart(2, "0");
+        const m = String(d.getMinutes()).padStart(2, "0");
+        return `${h}:${m}`;
       },
       async completeTask(task) {
         if (!task || task.progress >= 100) return;
@@ -1067,7 +1211,12 @@
           this.form.color = "";
         }
       },
-      closeForm() {
+      closeForm(options = {}) {
+        if (!options.skipDraft) this.persistFormDraft();
+        if (this.draftSaveTimer) {
+          clearTimeout(this.draftSaveTimer);
+          this.draftSaveTimer = null;
+        }
         this.form.open = false;
         this.requesterOpen = false;
       },
@@ -1131,7 +1280,8 @@
             }
             writeLocalTasks(this.tasks);
           }
-          this.closeForm();
+          this.clearFormDraft(formDraftKey(this.form));
+          this.closeForm({ skipDraft: true });
           this.setStatus(
             "ok",
             payload.progress >= 100 ? "진행률 100%로 완료 목록으로 옮겼습니다." : "저장했습니다."
@@ -1142,14 +1292,16 @@
       },
       async removeTask() {
         if (!this.form.id || !confirm("이 작업을 삭제할까요?")) return;
+        const taskId = this.form.id;
         try {
           if (fb.mode === "firebase" && fb.db) {
-            await fb.deleteTask(this.form.id);
+            await fb.deleteTask(taskId);
           } else {
-            this.tasks = this.tasks.filter((t) => t.id !== this.form.id);
+            this.tasks = this.tasks.filter((t) => t.id !== taskId);
             writeLocalTasks(this.tasks);
           }
-          this.closeForm();
+          this.clearFormDraft(taskId);
+          this.closeForm({ skipDraft: true });
           this.setStatus("ok", "삭제했습니다.");
         } catch (err) {
           this.setStatus("err", "삭제 실패: " + err.message);

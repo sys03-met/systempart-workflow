@@ -848,6 +848,21 @@ table.work col.col-actions { width: 116px; }
 .modal header { border-bottom: 1px solid var(--line); }
 .modal footer { border-top: 1px solid var(--line); }
 .modal h2 { margin: 0; font-size: 18px; }
+
+.form-draft-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.modal-footer-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .modal .body { padding: 16px 18px 8px; }
 
 .modal-export {

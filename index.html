@@ -431,7 +431,10 @@
     <div class="overlay" v-if="form.open" @click.self="closeForm">
       <div class="modal">
         <header>
-          <h2>{{ form.id ? '작업 수정' : '작업 등록' }}</h2>
+          <div>
+            <h2>{{ form.id ? '작업 수정' : '작업 등록' }}</h2>
+            <p v-if="formDraftSavedAt" class="form-draft-note">브라우저에 임시저장됨 · {{ formatDraftTime(formDraftSavedAt) }}</p>
+          </div>
           <button class="btn btn-ghost" @click="closeForm">닫기</button>
         </header>
         <div class="body">
@@ -534,8 +537,10 @@
           </div>
         </div>
         <footer>
-          <button class="btn btn-danger" v-if="form.id" @click="removeTask">삭제</button>
-          <span v-else></span>
+          <div class="modal-footer-left">
+            <button class="btn btn-danger" v-if="form.id" @click="removeTask">삭제</button>
+            <button v-if="formDraftSavedAt" type="button" class="btn btn-ghost" @click="discardFormDraft">임시저장 삭제</button>
+          </div>
           <div class="top-actions">
             <button class="btn" @click="closeForm">취소</button>
             <button class="btn btn-primary" @click="saveTask">저장</button>
