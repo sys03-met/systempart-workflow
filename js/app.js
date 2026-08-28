@@ -8,6 +8,7 @@
     연구과제: "#9a3412"
   };
   const TASK_COLOR_PRESETS = ["#1f4e79", "#1a7a6d", "#6c3483", "#b03a2e", "#b9770e", "#1e8449", "#5d6d7e"];
+  const IMPORTANT_TASK_COLOR = "#b03a2e";
   const LOCAL_TASKS_KEY = "systempart.tasks";
   const LOCAL_PARTS_KEY = "systempart.parts";
   const fb = window.AppFirebase;
@@ -944,6 +945,13 @@
           this.setStatus("ok", "완료 처리했습니다.");
         } catch (err) {
           this.setStatus("err", "완료 처리 실패: " + err.message);
+        }
+      },
+      onImportantToggle(event) {
+        if (event.target.checked) {
+          this.form.color = IMPORTANT_TASK_COLOR;
+        } else if (this.form.color === IMPORTANT_TASK_COLOR) {
+          this.form.color = "";
         }
       },
       closeForm() {

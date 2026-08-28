@@ -818,13 +818,18 @@ table.work {
 .important-badge {
   display: inline-block;
   margin-right: 6px;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: 999px;
-  background: #b03a2e;
-  color: #fff;
+  background: #fcd34d;
+  border: 1px solid #f59e0b;
+  color: #78350f;
   font-size: 11px;
   font-weight: 800;
   vertical-align: middle;
+}
+
+.check-inline.is-important {
+  gap: 8px;
 }
 
 .subtask-list {

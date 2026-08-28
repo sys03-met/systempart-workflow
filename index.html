@@ -497,9 +497,10 @@
             </div>
             <label class="field important-field">
               <span>중요 여부</span>
-              <label class="check-inline">
-                <input type="checkbox" v-model="form.important" />
-                중요 작업으로 표시
+              <label class="check-inline" :class="{ 'is-important': form.important }">
+                <input type="checkbox" v-model="form.important" @change="onImportantToggle" />
+                <span v-if="form.important" class="important-badge">중요</span>
+                <span v-else>중요 작업으로 표시</span>
               </label>
             </label>
             <div class="field full">
