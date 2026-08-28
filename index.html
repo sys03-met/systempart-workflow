@@ -37,8 +37,7 @@
           {{ loginBusy ? '확인 중...' : '접속' }}
         </button>
         <p class="hint">
-          Firestore <code>user</code> 문서의 <code>id</code> 필드와 같으면 접속됩니다.
-          안 되면 Console → Firestore → 규칙에서 읽기를 허용하세요.
+          Heo Jin-seok is AMI KING
         </p>
       </div>
     </div>
@@ -207,7 +206,7 @@
               <th class="sortable" @click="toggleSort('seq')">순번{{ sortMark('seq') }}</th>
               <th class="sortable col-date" @click="toggleSort('instructedAt')">지시일{{ sortMark('instructedAt') }}</th>
               <th class="sortable col-requester" @click="toggleSort('requester')">요청자{{ sortMark('requester') }}</th>
-              <th class="sortable" @click="toggleSort('parts')">파트{{ sortMark('parts') }}</th>
+              <th class="sortable col-parts" @click="toggleSort('parts')">파트{{ sortMark('parts') }}</th>
               <th>작업명</th>
               <th class="sortable col-date" @click="toggleSort('dueDate')">예정일{{ sortMark('dueDate') }}</th>
               <th class="sortable" @click="toggleSort('progress')">진행률{{ sortMark('progress') }}</th>
@@ -219,7 +218,7 @@
               <td class="seq">{{ task.seq }}</td>
               <td class="col-date">{{ task.instructedAt || '-' }}</td>
               <td class="col-requester" :class="{ 'requester-oneline': requesterOneLine(task.requester) }">{{ task.requester || '-' }}</td>
-              <td>
+              <td class="col-parts">
                 <div class="parts">
                   <span
                     v-for="part in task.parts"

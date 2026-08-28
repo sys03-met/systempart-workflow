@@ -216,12 +216,18 @@ button, input, select, textarea {
 }
 
 .chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 999px;
   padding: 7px 12px;
   font-size: 13px;
   font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
   color: var(--muted);
 }
@@ -233,16 +239,18 @@ button, input, select, textarea {
 }
 
 .chip-count {
-  display: inline-block;
-  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 18px;
+  min-height: 18px;
   padding: 1px 6px;
   border-radius: 999px;
   background: #e8eef4;
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  line-height: 1.3;
+  line-height: 1;
 }
 
 .chip.active .chip-count {
@@ -401,6 +409,10 @@ table.work {
   min-width: 4.5em;
   width: 4.5em;
 }
+.col-parts {
+  min-width: 88px;
+  width: 88px;
+}
 .requester-oneline {
   white-space: nowrap;
 }
@@ -453,14 +465,20 @@ table.work {
   font-size: 10px;
 }
 
-.parts { display: flex; gap: 4px; flex-wrap: wrap; }
+.parts { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 
 .tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   font-size: 11px;
   font-weight: 800;
   border-radius: 999px;
   padding: 3px 7px;
   color: #fff;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .tag.검침 { background: var(--part-meter); }
@@ -540,6 +558,8 @@ table.work {
 }
 
 .task-card-seq {
+  flex: 0 0 auto;
+}
   font-size: 12px;
   font-weight: 800;
   color: var(--muted);
@@ -547,8 +567,7 @@ table.work {
 }
 
 .task-card-head .parts {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .task-card-title {
