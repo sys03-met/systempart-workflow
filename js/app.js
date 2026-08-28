@@ -274,6 +274,55 @@
       });
   }
 
+  function csvEscape(value) {
+    const text = String(value ?? "");
+    if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+    return text;
+  }
+
+  function buildCsvTemplate(parts) {
+    const partHeaders = (parts || []).map((part) => `작업파트 ${part}`);
+    const headers = [
+      "순번",
+      "작업지시일",
+      "작업 요청자",
+      "완료예정일",
+      "진행률",
+      "중요",
+      ...partHeaders,
+      "작업명",
+      "세부내용",
+      "세부작업"
+    ];
+    const exampleParts = (parts || []).map((_, idx) => (idx === 0 ? "O" : ""));
+    const example = [
+      "1",
+      "2026-08",
+      "홍길동",
+      "2026-09-30",
+      "0",
+      "",
+      ...exampleParts,
+      "예시 작업명",
+      "세부 내용을 입력합니다.",
+      "[진행] 첫 번째 세부작업\n[완료] 두 번째 세부작업"
+    ];
+    const lines = [headers, example].map((row) => row.map(csvEscape).join(","));
+    return "\uFEFF" + lines.join("\r\n");
+  }
+
+  function downloadTextFile(filename, content, mime = "text/csv;charset=utf-8") {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function csvRowsToTasks(rows, knownParts) {
     if (!rows.length) return [];
     const headers = rows[0].map(normalizeHeader);
@@ -366,6 +415,41 @@
     };
   }
 
+  function blankExportForm() {
+    return {
+      open: false,
+      periodMode: "all",
+      dateFrom: "",
+      dateTo: "",
+      statusMode: "active",
+      partMode: "all",
+      selectedParts: []
+    };
+  }
+
+  function tasksForExport(tasks, options) {
+    let list = [...tasks];
+    if (options.statusMode === "active") {
+      list = list.filter((task) => task.progress < 100);
+    } else if (options.statusMode === "done") {
+      list = list.filter((task) => task.progress >= 100);
+    }
+    if (options.partMode === "part" && options.selectedParts?.length) {
+      const picked = new Set(options.selectedParts);
+      list = list.filter((task) => (task.parts || []).some((part) => picked.has(part)));
+    }
+    if (options.periodMode === "range") {
+      const from = options.dateFrom;
+      const to = options.dateTo;
+      list = list.filter((task) => {
+        const key = instructKey(task.instructedAt);
+        if (!key) return false;
+        return key >= from && key <= to;
+      });
+    }
+    return sortTasks(list);
+  }
+
   createApp({
     data() {
       return {
@@ -400,7 +484,8 @@
         sortDir: "desc",
         pageSize: 10,
         page: 1,
-        pageSizeOptions: PAGE_SIZE_OPTIONS
+        pageSizeOptions: PAGE_SIZE_OPTIONS,
+        exportModal: blankExportForm()
       };
     },
     computed: {
@@ -1167,11 +1252,12 @@
           this.setStatus("err", "CSV 읽기 실패: " + err.message);
         }
       },
+      downloadCsvTemplate() {
+        const content = buildCsvTemplate(this.parts);
+        downloadTextFile(`작업등록_양식_${todayStamp()}.csv`, content);
+        this.setStatus("ok", "CSV 양식을 다운로드했습니다.");
+      },
       exportExcel() {
-        if (this.view === "done") {
-          this.setStatus("warn", "엑셀 다운로드는 진행 중 작업만 지원합니다.");
-          return;
-        }
         const partCols = this.excelParts;
         const headers = [
           "순번",
@@ -1185,7 +1271,8 @@
           "세부내용"
         ];
         const aoa = [headers];
-        sortTasks(this.filteredBase).forEach((task) => {
+        const list = tasksForExport(this.tasks, this.exportModal);
+        list.forEach((task) => {
           const subLines = (task.subtasks || [])
             .filter((item) => item.text)
             .map((item) => `  - [${item.status}] ${item.text}`)
@@ -1208,6 +1295,53 @@
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
         XLSX.writeFile(wb, `진행업무_정리_${todayStamp()}.xlsx`);
+      },
+      openExportModal() {
+        this.exportModal = {
+          ...blankExportForm(),
+          open: true
+        };
+      },
+      closeExportModal() {
+        this.exportModal.open = false;
+      },
+      setExportPartMode(mode) {
+        this.exportModal.partMode = mode;
+        if (mode === "all") this.exportModal.selectedParts = [];
+      },
+      toggleExportPart(part) {
+        const selected = this.exportModal.selectedParts;
+        const idx = selected.indexOf(part);
+        if (idx >= 0) selected.splice(idx, 1);
+        else selected.push(part);
+      },
+      isExportPartSelected(part) {
+        return this.exportModal.selectedParts.includes(part);
+      },
+      confirmExportExcel() {
+        const modal = this.exportModal;
+        if (modal.periodMode === "range") {
+          if (!modal.dateFrom || !modal.dateTo) {
+            this.setStatus("warn", "기간의 시작일과 종료일을 선택하세요.");
+            return;
+          }
+          if (modal.dateFrom > modal.dateTo) {
+            this.setStatus("warn", "시작일이 종료일보다 늦을 수 없습니다.");
+            return;
+          }
+        }
+        if (modal.partMode === "part" && !modal.selectedParts.length) {
+          this.setStatus("warn", "추출할 파트를 하나 이상 선택하세요.");
+          return;
+        }
+        const list = tasksForExport(this.tasks, modal);
+        if (!list.length) {
+          this.setStatus("warn", "조건에 맞는 작업이 없습니다.");
+          return;
+        }
+        this.exportExcel();
+        this.closeExportModal();
+        this.setStatus("ok", `${list.length}건을 다운로드했습니다.`);
       }
     }
   }).mount("#app");
