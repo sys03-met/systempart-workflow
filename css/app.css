@@ -128,29 +128,88 @@ button, input, select, textarea {
   color: var(--danger);
 }
 
-.notice, .banner {
+.notice {
   border-radius: var(--radius);
   padding: 12px 14px;
   margin-bottom: 14px;
   font-size: 13px;
 }
 
-.banner-warn {
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(22, 50, 79, 0.2);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  pointer-events: auto;
+}
+
+.toast-message {
+  flex: 1;
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.toast-close {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+.toast-warn {
   background: #fff7e8;
   border: 1px solid #f0d9a6;
   color: #7d4e00;
 }
 
-.banner-ok {
+.toast-ok {
   background: #eaf7f3;
   border: 1px solid #b7e0d6;
   color: #0f5b4f;
 }
 
-.banner-err {
+.toast-err {
   background: #fdecea;
   border: 1px solid #f5c6c2;
   color: var(--danger);
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(14px);
+}
+
+@media (max-width: 900px) {
+  .toast {
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .panel {
@@ -516,9 +575,45 @@ table.work {
 }
 
 .row-actions {
-  display: flex;
+  display: inline-flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+.col-actions {
+  width: 1%;
+  min-width: 156px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.row-actions .btn,
+.task-card-actions .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.btn-complete {
+  background: #eafaf1;
+  border-color: #a9dfbf;
+  color: var(--ok);
+}
+
+.btn-complete:hover {
+  background: #d5f5e3;
+  border-color: #82e0aa;
+}
+
+.task-card-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .table-wrap {

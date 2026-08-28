@@ -364,6 +364,7 @@
         loading: true,
         expandedId: null,
         status: { type: "warn", message: "" },
+        statusTimer: null,
         storageMode: "local",
         db: null,
         unsubscribe: null,
@@ -575,6 +576,7 @@
       }
     },
     unmounted() {
+      if (this.statusTimer) clearTimeout(this.statusTimer);
       if (this.unsubscribe) this.unsubscribe();
       if (this.unsubscribeSettings) this.unsubscribeSettings();
       window.removeEventListener("hashchange", this.syncViewFromHash);
@@ -604,7 +606,27 @@
         };
       },
       setStatus(type, message) {
+        if (this.statusTimer) {
+          clearTimeout(this.statusTimer);
+          this.statusTimer = null;
+        }
+        if (!message) {
+          this.status = { type: "ok", message: "" };
+          return;
+        }
         this.status = { type, message };
+        const duration = type === "err" ? 5000 : 3200;
+        this.statusTimer = setTimeout(() => {
+          this.status = { type: "ok", message: "" };
+          this.statusTimer = null;
+        }, duration);
+      },
+      clearStatus() {
+        if (this.statusTimer) {
+          clearTimeout(this.statusTimer);
+          this.statusTimer = null;
+        }
+        this.status = { type: "ok", message: "" };
       },
       syncViewFromHash() {
         const hash = (location.hash || "#/").replace(/^#/, "");
@@ -903,6 +925,26 @@
       openEdit(task) {
         this.form = this.emptyForm(task);
         this.requesterOpen = false;
+      },
+      async completeTask(task) {
+        if (!task || task.progress >= 100) return;
+        const payload = {
+          progress: 100,
+          updatedAt: Date.now()
+        };
+        try {
+          if (fb.mode === "firebase" && fb.db) {
+            await fb.saveTask(task.id, payload);
+          } else {
+            this.tasks = this.tasks.map((t) =>
+              t.id === task.id ? normalizeTask({ ...t, ...payload }, t.id) : t
+            );
+            writeLocalTasks(this.tasks);
+          }
+          this.setStatus("ok", "완료 처리했습니다.");
+        } catch (err) {
+          this.setStatus("err", "완료 처리 실패: " + err.message);
+        }
       },
       closeForm() {
         this.form.open = false;

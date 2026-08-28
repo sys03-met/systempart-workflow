@@ -73,10 +73,6 @@
       </div>
     </header>
 
-    <div v-if="status.message" class="banner" :class="'banner-' + status.type">
-      {{ status.message }}
-    </div>
-
     <section class="panel" v-if="view !== 'settings'">
       <nav class="tabs">
         <button class="tab" :class="{ active: view === 'active' || view === 'done' }" @click="view = 'active'">작업</button>
@@ -211,7 +207,7 @@
               <th>작업명</th>
               <th class="sortable col-date" @click="toggleSort('dueDate')">예정일{{ sortMark('dueDate') }}</th>
               <th class="sortable" @click="toggleSort('progress')">진행률{{ sortMark('progress') }}</th>
-              <th></th>
+              <th class="col-actions"></th>
             </tr>
           </thead>
           <tbody>
@@ -275,9 +271,15 @@
                   <strong>{{ task.progress }}%</strong>
                 </div>
               </td>
-              <td>
+              <td class="col-actions">
                 <div class="row-actions">
-                  <button class="btn" @click="openEdit(task)">수정</button>
+                  <button type="button" class="btn" @click="openEdit(task)">수정</button>
+                  <button
+                    v-if="task.progress < 100"
+                    type="button"
+                    class="btn btn-complete"
+                    @click="completeTask(task)"
+                  >완료처리</button>
                 </div>
               </td>
             </tr>
@@ -301,7 +303,15 @@
                   :style="{ background: partColor(part) }"
                 >{{ part }}</span>
               </div>
-              <button type="button" class="btn" @click="openEdit(task)">수정</button>
+              <div class="task-card-actions">
+                <button type="button" class="btn" @click="openEdit(task)">수정</button>
+                <button
+                  v-if="task.progress < 100"
+                  type="button"
+                  class="btn btn-complete"
+                  @click="completeTask(task)"
+                >완료처리</button>
+              </div>
             </header>
             <h3 class="task-card-title">
               <span v-if="task.important" class="important-badge">중요</span>
@@ -547,6 +557,18 @@
       </svg>
     </button>
     </template>
+    <Transition name="toast">
+      <div
+        v-if="status.message"
+        class="toast"
+        :class="'toast-' + status.type"
+        role="status"
+        aria-live="polite"
+      >
+        <span class="toast-message">{{ status.message }}</span>
+        <button type="button" class="toast-close" aria-label="닫기" @click="clearStatus">×</button>
+      </div>
+    </Transition>
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
