@@ -785,7 +785,7 @@
           instructedAt: task.instructedAt,
           requester: task.requester,
           dueDate: defaultDueDate(task.instructedAt, task.dueDate),
-          progress: task.progress,
+          progress: clampProgress(task.progress),
           parts: [...task.parts],
           title: task.title,
           detail: task.detail,
@@ -1118,15 +1118,20 @@
       },
       openEdit(task) {
         this.requesterOpen = false;
-        this.openFormWithDraft(task.id, this.emptyForm(task));
+        this.openFormWithDraft(task.id, this.emptyForm(task), task.updatedAt || 0);
       },
-      openFormWithDraft(key, fallbackForm) {
+      openFormWithDraft(key, fallbackForm, taskUpdatedAt = 0) {
         const draft = readFormDrafts()[key];
         if (draft && !isFormDraftEmpty(draft)) {
-          this.form = draftToForm(draft);
-          this.formDraftSavedAt = draft.savedAt || null;
-          this.setStatus("ok", "임시저장된 내용을 불러왔습니다.");
-          return;
+          const draftTime = draft.savedAt || 0;
+          const taskTime = taskUpdatedAt || 0;
+          if (draftTime > taskTime) {
+            this.form = draftToForm(draft);
+            this.formDraftSavedAt = draft.savedAt || null;
+            this.setStatus("ok", "임시저장된 내용을 불러왔습니다.");
+            return;
+          }
+          this.clearFormDraft(key);
         }
         this.form = fallbackForm;
         this.formDraftSavedAt = null;
@@ -1191,12 +1196,13 @@
           updatedAt: Date.now()
         };
         try {
+          this.clearFormDraft(task.id);
+          this.tasks = this.tasks.map((t) =>
+            t.id === task.id ? normalizeTask({ ...t, ...payload }, t.id) : t
+          );
           if (fb.mode === "firebase" && fb.db) {
             await fb.saveTask(task.id, payload);
           } else {
-            this.tasks = this.tasks.map((t) =>
-              t.id === task.id ? normalizeTask({ ...t, ...payload }, t.id) : t
-            );
             writeLocalTasks(this.tasks);
           }
           this.setStatus("ok", "완료 처리했습니다.");
