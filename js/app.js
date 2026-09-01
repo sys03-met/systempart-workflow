@@ -347,7 +347,7 @@
       "완료예정일",
       "진행률",
       "중요",
-      ...partCols.map((part) => `작업파트\n${part}`),
+      ...partCols.map((part) => part),
       "작업명",
       "세부내용"
     ];
