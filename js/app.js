@@ -595,7 +595,7 @@
         return key >= from && key <= to;
       });
     }
-    return sortTasks(list);
+    return sortTasksBy(list, "seq", "desc");
   }
 
   createApp({
