@@ -325,6 +325,84 @@
     URL.revokeObjectURL(url);
   }
 
+  function downloadBlob(filename, buffer, mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") {
+    const blob = buffer instanceof Blob ? buffer : new Blob([buffer], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function buildExportWorkbook(tasks, partCols) {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Sheet1");
+    const headers = [
+      "순번",
+      "작업지시일",
+      "작업 요청자",
+      "완료예정일",
+      "진행률",
+      "중요",
+      ...partCols.map((part) => `작업파트\n${part}`),
+      "작업명",
+      "세부내용"
+    ];
+
+    const headerRow = sheet.addRow(headers);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { vertical: "middle", wrapText: true };
+
+    tasks.forEach((task) => {
+      const subLines = (task.subtasks || [])
+        .filter((item) => item.text)
+        .map((item) => `  - [${item.status}] ${item.text}`)
+        .join("\n");
+      const detail = [task.detail, subLines].filter(Boolean).join("\n");
+      const row = sheet.addRow([
+        task.seq,
+        task.instructedAt,
+        task.requester,
+        task.dueDate,
+        clampProgress(task.progress),
+        task.important ? "O" : "",
+        ...partCols.map((part) => (task.parts.includes(part) ? "O" : "")),
+        task.title,
+        detail
+      ]);
+      row.getCell(5).numFmt = "0";
+    });
+
+    const widths = [6, 14, 12, 12, 12, 8, ...partCols.map(() => 10), 40, 50];
+    widths.forEach((width, index) => {
+      sheet.getColumn(index + 1).width = width;
+    });
+
+    if (tasks.length) {
+      sheet.addConditionalFormatting({
+        ref: `E2:E${tasks.length + 1}`,
+        rules: [
+          {
+            type: "dataBar",
+            priority: 1,
+            cfvo: [
+              { type: "num", value: 0 },
+              { type: "num", value: 100 }
+            ],
+            color: { argb: "FF1E8449" },
+            showValue: true,
+            gradient: false
+          }
+        ]
+      });
+    }
+
+    return workbook;
+  }
+
   function csvRowsToTasks(rows, knownParts) {
     if (!rows.length) return [];
     const headers = rows[0].map(normalizeHeader);
@@ -1415,44 +1493,12 @@
         downloadTextFile(`작업등록_양식_${todayStamp()}.csv`, content);
         this.setStatus("ok", "CSV 양식을 다운로드했습니다.");
       },
-      exportExcel() {
+      async exportExcel() {
         const partCols = this.excelParts;
-        const headers = [
-          "순번",
-          "작업지시일",
-          "작업 요청자",
-          "완료예정일",
-          "진행률",
-          "중요",
-          ...partCols.map((part) => "작업파트\n" + part),
-          "작업명",
-          "세부내용"
-        ];
-        const aoa = [headers];
         const list = tasksForExport(this.tasks, this.exportModal);
-        list.forEach((task) => {
-          const subLines = (task.subtasks || [])
-            .filter((item) => item.text)
-            .map((item) => `  - [${item.status}] ${item.text}`)
-            .join("\n");
-          const detail = [task.detail, subLines].filter(Boolean).join("\n");
-          aoa.push([
-            task.seq,
-            task.instructedAt,
-            task.requester,
-            task.dueDate,
-            task.progress,
-            task.important ? "O" : "",
-            ...partCols.map((part) => (task.parts.includes(part) ? "O" : "")),
-            task.title,
-            detail
-          ]);
-        });
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-        ws["!cols"] = [6, 14, 12, 12, 8, 8, ...partCols.map(() => 10), 40, 50].map((wch) => ({ wch }));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-        XLSX.writeFile(wb, `진행업무_정리_${todayStamp()}.xlsx`);
+        const workbook = await buildExportWorkbook(list, partCols);
+        const buffer = await workbook.xlsx.writeBuffer();
+        downloadBlob(`진행업무_정리_${todayStamp()}.xlsx`, buffer);
       },
       openExportModal() {
         this.exportModal = {
@@ -1476,7 +1522,7 @@
       isExportPartSelected(part) {
         return this.exportModal.selectedParts.includes(part);
       },
-      confirmExportExcel() {
+      async confirmExportExcel() {
         const modal = this.exportModal;
         if (modal.periodMode === "range") {
           if (!modal.dateFrom || !modal.dateTo) {
@@ -1497,9 +1543,13 @@
           this.setStatus("warn", "조건에 맞는 작업이 없습니다.");
           return;
         }
-        this.exportExcel();
-        this.closeExportModal();
-        this.setStatus("ok", `${list.length}건을 다운로드했습니다.`);
+        try {
+          await this.exportExcel();
+          this.closeExportModal();
+          this.setStatus("ok", `${list.length}건을 다운로드했습니다.`);
+        } catch (err) {
+          this.setStatus("err", "엑셀 다운로드 실패: " + err.message);
+        }
       }
     }
   }).mount("#app");
