@@ -15,6 +15,7 @@
   const IMPORTANT_TASK_COLOR = "#b03a2e";
   const LOCAL_TASKS_KEY = "systempart.tasks";
   const LOCAL_PARTS_KEY = "systempart.parts";
+  const LOCAL_PART_DEFAULT_WORKERS_KEY = "systempart.partDefaultWorkers";
   const LOCAL_DRAFTS_KEY = "systempart.formDrafts";
   const DRAFT_NEW_KEY = "__new__";
   const fb = window.AppFirebase;
@@ -119,6 +120,8 @@
         }
       } else if (key === "requester") {
         cmp = String(a.requester || "").localeCompare(String(b.requester || ""), "ko");
+      } else if (key === "worker") {
+        cmp = String(a.worker || "").localeCompare(String(b.worker || ""), "ko");
       } else if (key === "parts") {
         cmp = (a.parts || []).join(",").localeCompare((b.parts || []).join(","), "ko");
       } else if (key === "important") {
@@ -172,18 +175,20 @@
 
   function normalizeTask(raw, fallbackId) {
     const parts = Array.isArray(raw.parts) ? raw.parts.filter(Boolean) : [];
+    const progress = clampProgress(raw.progress);
     return {
       id: raw.id || fallbackId,
       seq: Number(raw.seq) || 0,
       instructedAt: raw.instructedAt || "",
       requester: raw.requester || "",
       dueDate: defaultDueDate(raw.instructedAt, raw.dueDate),
-      progress: clampProgress(raw.progress),
+      progress,
+      worker: raw.worker || raw.assignee || "",
       parts,
       title: raw.title || "",
       detail: raw.detail || "",
       color: raw.color || "",
-      important: Boolean(raw.important),
+      important: progress >= 100 ? false : Boolean(raw.important),
       subtasks: normalizeSubtasks(raw.subtasks),
       createdAt: raw.createdAt || null,
       updatedAt: raw.updatedAt || null
@@ -288,6 +293,7 @@
       "순번",
       "작업지시일",
       "작업 요청자",
+      "작업자",
       "완료예정일",
       "진행률",
       "중요",
@@ -301,6 +307,7 @@
       "1",
       "2026-08",
       "홍길동",
+      "김담당",
       "2026-09-30",
       "0",
       "",
@@ -344,6 +351,7 @@
       "순번",
       "작업지시일",
       "작업 요청자",
+      "작업자",
       "완료예정일",
       "진행률",
       "중요",
@@ -366,6 +374,7 @@
         task.seq,
         task.instructedAt,
         task.requester,
+        task.worker,
         task.dueDate,
         clampProgress(task.progress),
         task.important ? "O" : "",
@@ -373,17 +382,18 @@
         task.title,
         detail
       ]);
-      row.getCell(5).numFmt = "0";
+      row.alignment = { vertical: "middle", wrapText: true };
+      row.getCell(6).numFmt = "0";
     });
 
-    const widths = [6, 14, 12, 12, 12, 8, ...partCols.map(() => 10), 40, 50];
+    const widths = [6, 14, 12, 14, 12, 12, 8, ...partCols.map(() => 10), 40, 50];
     widths.forEach((width, index) => {
       sheet.getColumn(index + 1).width = width;
     });
 
     if (tasks.length) {
       sheet.addConditionalFormatting({
-        ref: `E2:E${tasks.length + 1}`,
+        ref: `F2:F${tasks.length + 1}`,
         rules: [
           {
             type: "dataBar",
@@ -431,6 +441,7 @@
         seq: rec["순번"] || "",
         instructedAt: rec["작업지시일"] || rec["지시일"] || "",
         requester: rec["작업 요청자"] || rec["요청자"] || "",
+        worker: rec["작업자"] || rec["담당자"] || rec["worker"] || "",
         dueDate: defaultDueDate(rec["작업지시일"] || rec["지시일"] || "", rec["완료예정일"] || rec["예정일"] || ""),
         progress: rec["진행률"] || 0,
         parts,
@@ -469,6 +480,22 @@
     return [...DEFAULT_PARTS];
   }
 
+  /** 파트별 기본 작업자 설정을 로컬 저장소에서 읽습니다. */
+  function readLocalPartDefaultWorkers() {
+    try {
+      const raw = localStorage.getItem(LOCAL_PART_DEFAULT_WORKERS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .map(([part, worker]) => [String(part), String(worker || "").trim()])
+          .filter(([, worker]) => worker)
+      );
+    } catch {
+      return {};
+    }
+  }
+
   function partColor(name) {
     if (PART_PRESET_COLORS[name]) return PART_PRESET_COLORS[name];
     let hash = 0;
@@ -484,6 +511,8 @@
       seq: 0,
       instructedAt: today,
       requester: "",
+      worker: "",
+      workerAuto: true,
       dueDate: defaultDueDate(today, ""),
       progress: 0,
       parts: [],
@@ -518,6 +547,7 @@
     if (String(draft.title || "").trim()) return false;
     if (String(draft.detail || "").trim()) return false;
     if (String(draft.requester || "").trim()) return false;
+    if (String(draft.worker || "").trim()) return false;
     if ((draft.parts || []).length) return false;
     if ((draft.subtasks || []).some((item) => String(item.text || "").trim())) return false;
     if (draft.important) return false;
@@ -532,6 +562,8 @@
       seq: form.seq || 0,
       instructedAt: form.instructedAt || "",
       requester: form.requester || "",
+      worker: form.worker || "",
+      workerAuto: Boolean(form.workerAuto),
       dueDate: form.dueDate || "",
       progress: clampProgress(form.progress),
       parts: [...(form.parts || [])],
@@ -552,6 +584,8 @@
       seq: draft.seq || 0,
       instructedAt: draft.instructedAt || today,
       requester: draft.requester || "",
+      worker: draft.worker || "",
+      workerAuto: draft.workerAuto !== false,
       dueDate: draft.dueDate || defaultDueDate(draft.instructedAt || today, ""),
       progress: clampProgress(draft.progress),
       parts: [...(draft.parts || [])],
@@ -608,11 +642,13 @@
         keyword: "",
         tasks: [],
         parts: readLocalParts(),
+        partDefaultWorkers: readLocalPartDefaultWorkers(),
         loading: true,
         expandedId: null,
         status: { type: "warn", message: "" },
         statusTimer: null,
         storageMode: "local",
+        settingsLoaded: false,
         db: null,
         unsubscribe: null,
         unsubscribeSettings: null,
@@ -669,7 +705,7 @@
           if (this.partFilter !== "전체" && !task.parts.includes(this.partFilter)) return false;
           if (!this.keyword) return true;
           const sub = (task.subtasks || []).map((s) => s.text).join(" ");
-          const blob = `${task.title} ${task.detail} ${task.requester} ${sub}`.toLowerCase();
+          const blob = `${task.title} ${task.detail} ${task.requester} ${task.worker} ${sub}`.toLowerCase();
           return blob.includes(this.keyword.toLowerCase());
         });
       },
@@ -862,6 +898,8 @@
           seq: task.seq,
           instructedAt: task.instructedAt,
           requester: task.requester,
+          worker: task.worker || "",
+          workerAuto: false,
           dueDate: defaultDueDate(task.instructedAt, task.dueDate),
           progress: clampProgress(task.progress),
           parts: [...task.parts],
@@ -1002,6 +1040,7 @@
           (rows) => {
             this.tasks = rows.map((row) => normalizeTask(row, row.id));
             this.loading = false;
+            if (this.settingsLoaded) this.applyDefaultWorkersToActiveTasks();
           },
           (err) => {
             this.loading = false;
@@ -1012,11 +1051,27 @@
             );
           }
         );
+        this.settingsLoaded = false;
         this.unsubscribeSettings = fb.subscribeSettings((data) => {
           if (data && Array.isArray(data.parts) && data.parts.length) {
             this.parts = data.parts;
             localStorage.setItem(LOCAL_PARTS_KEY, JSON.stringify(this.parts));
           }
+          const remoteDefaults =
+            data && data.partDefaultWorkers && typeof data.partDefaultWorkers === "object"
+              ? data.partDefaultWorkers
+              : {};
+          this.partDefaultWorkers = Object.fromEntries(
+            Object.entries(remoteDefaults)
+              .map(([part, worker]) => [String(part), String(worker || "").trim()])
+              .filter(([, worker]) => worker)
+          );
+          localStorage.setItem(
+            LOCAL_PART_DEFAULT_WORKERS_KEY,
+            JSON.stringify(this.partDefaultWorkers)
+          );
+          this.settingsLoaded = true;
+          this.applyDefaultWorkersToActiveTasks();
         });
       },
       async login() {
@@ -1073,15 +1128,22 @@
       startLocal(message) {
         this.db = null;
         this.storageMode = "local";
+        this.settingsLoaded = true;
         this.currentUser = null;
         this.tasks = readLocalTasks();
         this.parts = readLocalParts();
+        this.partDefaultWorkers = readLocalPartDefaultWorkers();
         this.loading = false;
+        this.applyDefaultWorkersToActiveTasks();
         this.setStatus(message ? "warn" : "ok", message || "");
       },
       persistParts(parts) {
-        fb.saveParts(parts).catch(() => {
+        fb.saveParts(parts, this.partDefaultWorkers).catch(() => {
           localStorage.setItem(LOCAL_PARTS_KEY, JSON.stringify(parts));
+          localStorage.setItem(
+            LOCAL_PART_DEFAULT_WORKERS_KEY,
+            JSON.stringify(this.partDefaultWorkers)
+          );
         });
       },
       addPart() {
@@ -1107,6 +1169,9 @@
         }
         if (!confirm(`'${name}' 파트를 삭제할까요? 기존 작업의 표시는 유지됩니다.`)) return;
         this.parts = this.parts.filter((part) => part !== name);
+        const nextDefaults = { ...this.partDefaultWorkers };
+        delete nextDefaults[name];
+        this.partDefaultWorkers = nextDefaults;
         if (this.partFilter === name) this.partFilter = "전체";
         if (this.editingPart === name) this.cancelRenamePart();
         this.persistParts(this.parts);
@@ -1136,6 +1201,10 @@
           return;
         }
         this.parts = this.parts.map((part) => (part === oldName ? next : part));
+        const nextDefaults = { ...this.partDefaultWorkers };
+        if (nextDefaults[oldName]) nextDefaults[next] = nextDefaults[oldName];
+        delete nextDefaults[oldName];
+        this.partDefaultWorkers = nextDefaults;
         if (this.partFilter === oldName) this.partFilter = next;
         if (this.form.parts.includes(oldName)) {
           this.form.parts = this.form.parts.map((part) => (part === oldName ? next : part));
@@ -1170,19 +1239,68 @@
           this.setStatus("err", "파트 이름 변경 실패: " + err.message);
         }
       },
+      /** 선택한 파트에서 사용할 첫 번째 기본 작업자를 찾습니다. */
+      defaultWorkerForParts(parts) {
+        return (parts || []).map((part) => this.partDefaultWorkers[part]).find(Boolean) || "";
+      },
+      /** 새 작업의 파트 선택에 따라 기본 작업자를 자동 입력합니다. */
+      onPartsChange() {
+        if (!this.form.id && this.form.workerAuto) {
+          this.form.worker = this.defaultWorkerForParts(this.form.parts);
+        }
+      },
+      /** 설정 화면에서 수정한 파트별 기본 작업자를 저장합니다. */
+      savePartDefaultWorker(part) {
+        const worker = String(this.partDefaultWorkers[part] || "").trim();
+        const next = { ...this.partDefaultWorkers };
+        if (worker) next[part] = worker;
+        else delete next[part];
+        this.partDefaultWorkers = next;
+        this.persistParts(this.parts);
+        this.applyDefaultWorkersToActiveTasks();
+        this.setStatus("ok", `'${part}' 기본 작업자를 저장했습니다.`);
+      },
+      /** 완료되지 않은 기존 작업 중 작업자가 비어 있는 항목에 기본 작업자를 적용합니다. */
+      async applyDefaultWorkersToActiveTasks() {
+        const updates = [];
+        const nextTasks = this.tasks.map((task) => {
+          if (task.progress >= 100 || task.worker) return task;
+          const worker = this.defaultWorkerForParts(task.parts);
+          if (!worker) return task;
+          const updatedAt = Date.now();
+          updates.push({ id: task.id, worker, updatedAt });
+          return { ...task, worker, updatedAt };
+        });
+        if (!updates.length) return;
+        this.tasks = nextTasks;
+        try {
+          if (fb.mode === "firebase" && fb.db) {
+            await Promise.all(
+              updates.map(({ id, worker, updatedAt }) =>
+                fb.saveTask(id, { worker, updatedAt })
+              )
+            );
+          } else {
+            writeLocalTasks(this.tasks);
+          }
+        } catch (err) {
+          this.setStatus("err", "기본 작업자 자동 적용 실패: " + err.message);
+        }
+      },
       payloadFromForm() {
         const progress = clampProgress(this.form.progress);
         return {
           seq: this.form.seq || this.nextSeq(),
           instructedAt: this.form.instructedAt,
           requester: this.form.requester,
+          worker: this.form.worker || "",
           dueDate: defaultDueDate(this.form.instructedAt, this.form.dueDate),
           progress,
           parts: [...this.form.parts],
           title: normalizeTitle(this.form.title),
           detail: this.form.detail || "",
           color: this.form.color || "",
-          important: Boolean(this.form.important),
+          important: progress >= 100 ? false : Boolean(this.form.important),
           subtasks: normalizeSubtasks(this.form.subtasks).filter((item) => item.text.trim()),
           updatedAt: Date.now()
         };
@@ -1271,6 +1389,9 @@
         if (!task || task.progress >= 100) return;
         const payload = {
           progress: 100,
+          important: false,
+          // 상위 작업을 완료할 때 연결된 세부작업도 같은 완료 상태로 동기화한다.
+          subtasks: normalizeSubtasks(task.subtasks).map((item) => ({ ...item, status: "완료" })),
           updatedAt: Date.now()
         };
         try {
@@ -1424,17 +1545,19 @@
           } else {
             seqCursor = Math.max(seqCursor, seq);
           }
+          const progress = clampProgress(item.progress);
           return {
             seq,
             instructedAt: item.instructedAt || "",
             requester: item.requester || "",
+            worker: item.worker || this.defaultWorkerForParts(item.parts),
             dueDate: defaultDueDate(item.instructedAt, item.dueDate),
-            progress: clampProgress(item.progress),
+            progress,
             parts: Array.isArray(item.parts) ? item.parts : [],
             title: normalizeTitle(item.title),
             detail: item.detail || "",
             color: item.color || "",
-            important: Boolean(item.important),
+            important: progress >= 100 ? false : Boolean(item.important),
             subtasks: normalizeSubtasks(item.subtasks),
             updatedAt: Date.now()
           };

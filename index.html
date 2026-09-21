@@ -146,6 +146,19 @@
       <div v-else>
         <div class="list-meta">
           <span class="list-count">총 <strong>{{ sortedTasks.length }}</strong>건</span>
+          <div class="pager pager-top" v-if="pageCount > 1" aria-label="작업 목록 페이지 이동">
+            <button type="button" class="btn" :disabled="page <= 1" @click="goPage(page - 1)">이전</button>
+            <button
+              v-for="n in pageNumbers"
+              :key="n"
+              type="button"
+              class="btn"
+              :class="{ 'btn-primary': n === page }"
+              @click="goPage(n)"
+            >{{ n }}</button>
+            <button type="button" class="btn" :disabled="page >= pageCount" @click="goPage(page + 1)">다음</button>
+            <span class="pager-info">{{ page }} / {{ pageCount }} 페이지</span>
+          </div>
           <div class="page-size" role="group" aria-label="페이지당 건수">
             <span class="page-size-label">보기</span>
             <div class="page-size-group">
@@ -167,6 +180,7 @@
               <option value="seq">순번</option>
               <option value="instructedAt">지시일</option>
               <option value="requester">요청자</option>
+              <option value="worker">작업자</option>
               <option value="parts">파트</option>
               <option value="important">중요</option>
               <option value="dueDate">예정일</option>
@@ -183,6 +197,7 @@
             <col class="col-seq" />
             <col class="col-date" />
             <col class="col-requester" />
+            <col class="col-worker" />
             <col class="col-parts" />
             <col class="col-important" />
             <col class="col-title" />
@@ -195,6 +210,7 @@
               <th class="sortable" @click="toggleSort('seq')">순번{{ sortMark('seq') }}</th>
               <th class="sortable col-date" @click="toggleSort('instructedAt')">지시일{{ sortMark('instructedAt') }}</th>
               <th class="sortable col-requester" @click="toggleSort('requester')">요청자{{ sortMark('requester') }}</th>
+              <th class="sortable col-worker" @click="toggleSort('worker')">작업자{{ sortMark('worker') }}</th>
               <th class="sortable col-parts" @click="toggleSort('parts')">파트{{ sortMark('parts') }}</th>
               <th class="sortable col-important" @click="toggleSort('important')">중요{{ sortMark('important') }}</th>
               <th class="col-title">작업명</th>
@@ -208,6 +224,7 @@
               <td class="seq">{{ task.seq }}</td>
               <td class="col-date">{{ task.instructedAt || '-' }}</td>
               <td class="col-requester" :class="{ 'requester-oneline': requesterOneLine(task.requester) }">{{ task.requester || '-' }}</td>
+              <td class="col-worker">{{ task.worker || '-' }}</td>
               <td class="col-parts">
                 <div class="parts">
                   <span
@@ -326,6 +343,10 @@
                 <dt>요청자</dt>
                 <dd :class="{ 'requester-oneline': requesterOneLine(task.requester) }">{{ task.requester || '-' }}</dd>
               </div>
+              <div>
+                <dt>작업자</dt>
+                <dd>{{ task.worker || '-' }}</dd>
+              </div>
             </dl>
             <div
               v-if="task.detail"
@@ -365,18 +386,6 @@
             </div>
           </article>
         </div>
-        <div class="pager" v-if="pageCount > 1">
-          <button class="btn" :disabled="page <= 1" @click="goPage(page - 1)">이전</button>
-          <button
-            v-for="n in pageNumbers"
-            :key="n"
-            class="btn"
-            :class="{ 'btn-primary': n === page }"
-            @click="goPage(n)"
-          >{{ n }}</button>
-          <button class="btn" :disabled="page >= pageCount" @click="goPage(page + 1)">다음</button>
-          <span class="pager-info">{{ page }} / {{ pageCount }} 페이지</span>
-        </div>
       </div>
     </section>
 
@@ -387,6 +396,7 @@
       </div>
 
       <h3>작업 파트</h3>
+      <p class="hint">파트별 기본 작업자를 지정하면 새 작업 등록 시 자동으로 입력됩니다. 입력 후 포커스를 벗어나면 저장됩니다.</p>
       <ul class="part-editor">
         <li v-for="part in parts" :key="part">
           <template v-if="editingPart === part">
@@ -403,7 +413,16 @@
             </div>
           </template>
           <template v-else>
-            <span class="tag" :style="{ background: partColor(part) }">{{ part }}</span>
+            <div class="part-editor-info">
+              <span class="tag" :style="{ background: partColor(part) }">{{ part }}</span>
+              <input
+                class="part-default-worker"
+                v-model.trim="partDefaultWorkers[part]"
+                placeholder="기본 작업자"
+                aria-label="기본 작업자"
+                @change="savePartDefaultWorker(part)"
+              />
+            </div>
             <div class="part-editor-actions">
               <button type="button" class="btn" @click="startRenamePart(part)">이름 변경</button>
               <button type="button" class="btn btn-danger" @click="removePart(part)">삭제</button>
@@ -464,6 +483,10 @@
               </ul>
             </label>
             <label class="field">
+              <span>작업자</span>
+              <input v-model.trim="form.worker" placeholder="작업자" @input="form.workerAuto = false" />
+            </label>
+            <label class="field">
               <span>완료예정일</span>
               <input v-model="form.dueDate" type="date" />
             </label>
@@ -507,7 +530,7 @@
               <span>작업 파트</span>
               <div class="checkboxes">
                 <label v-for="part in parts" :key="part">
-                  <input type="checkbox" :value="part" v-model="form.parts" />
+                  <input type="checkbox" :value="part" v-model="form.parts" @change="onPartsChange" />
                   {{ part }}
                 </label>
               </div>

@@ -1,6 +1,7 @@
 (() => {
   const SESSION_KEY = "systempart.session";
   const LOCAL_PARTS_KEY = "systempart.parts";
+  const LOCAL_PART_DEFAULT_WORKERS_KEY = "systempart.partDefaultWorkers";
 
   function parseDotEnv(text) {
     const out = {};
@@ -139,10 +140,17 @@
             () => {}
           );
       },
-      async saveParts(parts) {
+      async saveParts(parts, partDefaultWorkers = {}) {
         localStorage.setItem(LOCAL_PARTS_KEY, JSON.stringify(parts));
+        localStorage.setItem(
+          LOCAL_PART_DEFAULT_WORKERS_KEY,
+          JSON.stringify(partDefaultWorkers)
+        );
         if (!db) return;
-        await db.collection("settings").doc("app").set({ parts }, { merge: true });
+        await db
+          .collection("settings")
+          .doc("app")
+          .set({ parts, partDefaultWorkers }, { merge: true });
       },
       async saveTask(id, payload) {
         if (!db) throw new Error("Firebase에 연결되지 않았습니다.");
