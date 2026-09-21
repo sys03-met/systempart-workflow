@@ -648,7 +648,6 @@
         status: { type: "warn", message: "" },
         statusTimer: null,
         storageMode: "local",
-        settingsLoaded: false,
         db: null,
         unsubscribe: null,
         unsubscribeSettings: null,
@@ -1040,7 +1039,6 @@
           (rows) => {
             this.tasks = rows.map((row) => normalizeTask(row, row.id));
             this.loading = false;
-            if (this.settingsLoaded) this.applyDefaultWorkersToActiveTasks();
           },
           (err) => {
             this.loading = false;
@@ -1051,7 +1049,6 @@
             );
           }
         );
-        this.settingsLoaded = false;
         this.unsubscribeSettings = fb.subscribeSettings((data) => {
           if (data && Array.isArray(data.parts) && data.parts.length) {
             this.parts = data.parts;
@@ -1070,8 +1067,6 @@
             LOCAL_PART_DEFAULT_WORKERS_KEY,
             JSON.stringify(this.partDefaultWorkers)
           );
-          this.settingsLoaded = true;
-          this.applyDefaultWorkersToActiveTasks();
         });
       },
       async login() {
@@ -1128,13 +1123,11 @@
       startLocal(message) {
         this.db = null;
         this.storageMode = "local";
-        this.settingsLoaded = true;
         this.currentUser = null;
         this.tasks = readLocalTasks();
         this.parts = readLocalParts();
         this.partDefaultWorkers = readLocalPartDefaultWorkers();
         this.loading = false;
-        this.applyDefaultWorkersToActiveTasks();
         this.setStatus(message ? "warn" : "ok", message || "");
       },
       persistParts(parts) {
@@ -1257,35 +1250,7 @@
         else delete next[part];
         this.partDefaultWorkers = next;
         this.persistParts(this.parts);
-        this.applyDefaultWorkersToActiveTasks();
         this.setStatus("ok", `'${part}' 기본 작업자를 저장했습니다.`);
-      },
-      /** 완료되지 않은 기존 작업 중 작업자가 비어 있는 항목에 기본 작업자를 적용합니다. */
-      async applyDefaultWorkersToActiveTasks() {
-        const updates = [];
-        const nextTasks = this.tasks.map((task) => {
-          if (task.progress >= 100 || task.worker) return task;
-          const worker = this.defaultWorkerForParts(task.parts);
-          if (!worker) return task;
-          const updatedAt = Date.now();
-          updates.push({ id: task.id, worker, updatedAt });
-          return { ...task, worker, updatedAt };
-        });
-        if (!updates.length) return;
-        this.tasks = nextTasks;
-        try {
-          if (fb.mode === "firebase" && fb.db) {
-            await Promise.all(
-              updates.map(({ id, worker, updatedAt }) =>
-                fb.saveTask(id, { worker, updatedAt })
-              )
-            );
-          } else {
-            writeLocalTasks(this.tasks);
-          }
-        } catch (err) {
-          this.setStatus("err", "기본 작업자 자동 적용 실패: " + err.message);
-        }
       },
       payloadFromForm() {
         const progress = clampProgress(this.form.progress);
